@@ -5,50 +5,48 @@ fn main() {
        .expect("Failed to read input");
     let input = input.trim();
 
+    let result = reduce(&input, None).len();
+    println!("Number of units: {}", result);
+    assert_eq!(result, 10450);
+
     for c in (b'a'..= b'z').map(|c| c as char) {
-        let result = reduce(&input, c);
+        let result = reduce(&input, Some(c));
         println!("{}: {}", c, result.len());
     }
 }
 
-fn reduce(polymer: &str, ignore: char) -> String {
+fn reduce(input: &str, ignore: Option<char>) -> String {
     let mut chars = Vec::new();
-    let mut new_chars: Vec<char> = polymer.chars().collect();
-    while chars.len() != new_chars.len() && new_chars.len() >= 2 {
+    let mut new_chars: Vec<char> = input.chars().collect();
+
+    // While we still can reduce the input
+    while chars.len() != new_chars.len() {
         chars = new_chars;
         new_chars = Vec::new();
-        //println!("{:?}", chars);
-        let mut window_iter = chars.windows(2).peekable();
-        loop {
-            match window_iter.next() {
-                None => break,
-                Some([c1, c2]) => {
-                    if ! (c1.eq_ignore_ascii_case(&c2) && (c1.is_uppercase() ^ c2.is_uppercase())) {
-                        push(&mut new_chars,*c1, ignore);
-                        if window_iter.peek().is_none() {
-                            push(&mut new_chars,*c2, ignore);
-                        }
-                        continue;
-                    }
-
-                    //println!("Dropping {} and {}", c1, c2);
-                    if let Some([_c2, c3]) = window_iter.next() {
-                        if window_iter.peek().is_none() {
-                            push(&mut new_chars,*c3, ignore);
-                        }
-                    }
-                },
-                _ => (),
+        let mut chars_iter = chars.iter().peekable();
+        while let Some(c1) = chars_iter.next() {
+            if let Some(&c2) = chars_iter.peek() {
+                if is_opposite(*c1, *c2) {
+                    // Drop this character and the next
+                    chars_iter.next();
+                    continue;
+                }
             }
+
+            if let Some(ignore) = ignore {
+                if c1.eq_ignore_ascii_case(&ignore) {
+                    continue;
+                }
+            }
+
+            new_chars.push(*c1);
         }
     }
 
+    // Return as String
     new_chars.into_iter().collect()
 }
 
-fn push(chars: &mut Vec<char>, c: char, ignore: char) {
-    if c.eq_ignore_ascii_case(&ignore) {
-        return;
-    }
-    chars.push(c)
+fn is_opposite(c1: char, c2: char) -> bool {
+    c1.eq_ignore_ascii_case(&c2) && (c1.is_uppercase() ^ c2.is_uppercase())
 }
