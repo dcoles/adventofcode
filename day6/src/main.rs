@@ -2,8 +2,12 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 
+const WIDTH: usize = 350;
+const HEIGHT: usize= 350;
+const MAX_SUM_DISTANCE: i32 = 10_000;
+
 fn main() {
-    let mut grid = Grid::new(350, 350);
+    let mut grid = Grid::new(WIDTH, HEIGHT);
     let input= read_input();
 
     // Part 1
@@ -45,6 +49,21 @@ fn main() {
     let (area, point) = area_point.last().unwrap();
     println!("Point #{} has the largest non-infinite area: {}", point, area);
 
+    // Part 2
+
+    let mut region_size = 0;
+
+    for y in 0..grid.height {
+        for x in 0..grid.width {
+            let c1 = Coord(x as i32, y as i32);
+            if input.iter().map(|c2| c1.distance(c2)).sum::<i32>()
+                    < MAX_SUM_DISTANCE {
+                region_size += 1;
+            }
+        }
+    }
+
+    println!("The largest region is sized {} units", region_size);
 }
 
 fn read_input() -> Vec<Coord> {
@@ -64,9 +83,6 @@ fn read_input() -> Vec<Coord> {
 }
 
 #[derive(Debug)]
-#[derive(Ord, PartialOrd, Eq, PartialEq)]
-#[derive(Hash)]
-#[derive(Clone)]
 struct Coord(i32, i32);
 
 impl Coord {
@@ -82,7 +98,16 @@ enum Value {
     Conflict,
 }
 
-#[derive(Clone)]
+impl Value {
+    fn format(&self) -> String {
+        match self {
+            Value::None => String::from(" ."),
+            Value::Some(v) => sgr(31 + v%5) + &format!("{:2}", v) + &sgr(0),
+            Value::Conflict => sgr(37) + " *" + &sgr(0),
+        }
+    }
+}
+
 struct Grid {
     width: usize,
     height: usize,
@@ -97,11 +122,7 @@ impl Grid {
     fn print(&self) {
         for row in &self.values {
             println!("{}", row.iter()
-                .map(|v| match v {
-                    Value::None => String::from(" ."),
-                    Value::Some(v) => format!("{:2}", v),
-                    Value::Conflict => String::from(" *"),
-                })
+                .map(|v| v.format())
                 .collect::<Vec<String>>()
                 .join(" "))
         }
@@ -110,4 +131,8 @@ impl Grid {
     fn set(&mut self, coord: &Coord, value: Value) {
         self.values[coord.1 as usize][coord.0 as usize] = value;
     }
+}
+
+fn sgr(n: u8) -> String {
+    format!("\x1b[{}m", n)
 }
