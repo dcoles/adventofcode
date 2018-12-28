@@ -1,24 +1,50 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 
 fn main() {
-    let mut target_grid = Grid::new(400, 400);
-    let mut result_grid = Grid::new(target_grid.width, target_grid.height);
-
+    let mut grid = Grid::new(350, 350);
     let input= read_input();
-    for (coord, n) in input.iter().zip(1u8..) {
-        target_grid.set(&coord, n);
-    }
 
-    for y in 0..10 {
-        println!("{}...", y);
-        for x in 0..10 {
-            let c = Coord(y as i32, x as i32);
-            result_grid.set(&c, find_nearest(&target_grid, &c));
+    // Part 1
+
+    let mut infinite_points = HashSet::new();
+    let mut point_area: HashMap<u8, u32> = HashMap::new();
+
+    for y in 0..grid.height {
+        for x in 0..grid.width {
+            let c1 = Coord(x as i32, y as i32);
+            let mut distance: Vec<(i32, u8)> = Vec::new();
+            for (n, c2) in (1u8..).zip(&input) {
+                distance.push((c1.distance(c2), n));
+            }
+            distance.sort();
+
+            let n = distance[0].1;
+            if distance[0].0 != distance[1].0 {
+                grid.set(&c1, Value::Some(n));
+                *point_area.entry(n).or_default() += 1;
+                if x == 0 || y == 0 || x == grid.width - 1 || y == grid.height - 1 {
+                    infinite_points.insert(n);
+                }
+            } else {
+                grid.set(&c1, Value::Conflict);
+            }
         }
     }
 
-    result_grid.print();
+    grid.print();
+
+    for k in &infinite_points {
+        point_area.remove(k);
+    }
+
+    let mut area_point: Vec<(_, _)> = point_area.iter().map(|(k,v)| (v, k)).collect();
+    area_point.sort();
+
+    let (area, point) = area_point.last().unwrap();
+    println!("Point #{} has the largest non-infinite area: {}", point, area);
+
 }
 
 fn read_input() -> Vec<Coord> {
@@ -37,88 +63,51 @@ fn read_input() -> Vec<Coord> {
     result
 }
 
-fn find_nearest(grid: &Grid, point: &Coord) -> u8 {
-    let mut seen: HashSet<Coord> = HashSet::new();
-
-    // Start at the current point
-    let mut edge: HashSet<Coord> = HashSet::new();
-    let point: Coord = point.clone();
-    edge.insert(point.clone());
-
-    let mut found: HashSet<u8> = HashSet::new();
-    while found.is_empty() && !edge.is_empty() {
-        let mut new_edge: HashSet<Coord> = HashSet::new();
-        for c in edge.iter() {
-            for n in grid.neighbours(c) {
-                let val = grid.get(&n);
-                if val != 0 {
-                    found.insert(val);
-                }
-                if ! seen.contains(&n) {
-                    new_edge.insert(n);
-                }
-            }
-        }
-        seen.extend(edge);
-        edge = new_edge;
-    }
-
-    if found.len() != 1 {
-        return 0
-    } else {
-        return *found.iter().next().unwrap();
-    }
-}
-
 #[derive(Debug)]
 #[derive(Ord, PartialOrd, Eq, PartialEq)]
 #[derive(Hash)]
 #[derive(Clone)]
 struct Coord(i32, i32);
 
+impl Coord {
+    fn distance(&self, other: &Coord) -> i32 {
+        (self.0 - other.0).abs() + (self.1 - other.1).abs()
+    }
+}
+
+#[derive(Clone)]
+enum Value {
+    None,
+    Some(u8),
+    Conflict,
+}
+
+#[derive(Clone)]
 struct Grid {
     width: usize,
     height: usize,
-    values: Vec<Vec<u8>>,
+    values: Vec<Vec<Value>>,
 }
 
 impl Grid {
     fn new(width: usize, height: usize) -> Grid {
-        Grid {width, height, values: vec![vec![0; width]; height] }
+        Grid {width, height, values: vec![vec![Value::None; width]; height] }
     }
 
     fn print(&self) {
         for row in &self.values {
             println!("{}", row.iter()
-                .map(|v| if *v != 0 { format!("{:2}", v) } else { String::from(" .") })
+                .map(|v| match v {
+                    Value::None => String::from(" ."),
+                    Value::Some(v) => format!("{:2}", v),
+                    Value::Conflict => String::from(" *"),
+                })
                 .collect::<Vec<String>>()
                 .join(" "))
         }
     }
 
-    fn get(&self, coord: &Coord) -> u8 {
-        self.values[coord.1 as usize][coord.0 as usize]
-    }
-
-    fn set(&mut self, coord: &Coord, value: u8) {
+    fn set(&mut self, coord: &Coord, value: Value) {
         self.values[coord.1 as usize][coord.0 as usize] = value;
-    }
-
-    fn valid(&self, coord: &Coord) -> bool {
-        0 <= coord.0 && coord.0 < self.width as i32
-            && 0 <= coord.1 && coord.1 < self.height as i32
-    }
-
-    fn neighbours(&self, coord: &Coord) -> HashSet<Coord> {
-        let mut result = HashSet::new();
-        for (xoff, yoff) in &[(1, 0), (0, 1), (-1, 0), (0, -1)] {
-            let x: i32 = coord.0 + *xoff;
-            let y: i32 = coord.1 + *yoff;
-            let c = Coord(x, y);
-            if self.valid(&c) {
-                result.insert(c);
-            }
-        }
-        result
     }
 }
