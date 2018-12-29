@@ -1,0 +1,10 @@
+[package]
+name = "day11"
+version = "0.1.0"
+authors = ["David Coles <coles.david@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+
+[profile.dev]
+opt-level = 3
