@@ -1,20 +1,30 @@
+use std::collections::HashMap;
 use std::fs;
 
-const N_POTS: usize = 300;
-const OFFSET: usize = 100;
+const N_POTS: usize = 250;
+const OFFSET: usize = 10;
 const WINDOW: usize = 5;
+const GENERATIONS: u64 = 135;
 
 fn main() {
     let mut world = read_input();
 
     // Part 1
-    while world.generation < 20 {
+    println!("{:>3} [{:>5}] {:>width$}", "GEN", "SUM", "0", width=OFFSET+1);
+    while world.generation < GENERATIONS {
         world.print();
         world.tick();
     }
     world.print();
 
-    println!("Sum of pots with plants: {}", world.sum());
+    // Part 2
+    // Empirically we can see that by generation 129 that the plants have reached a steady-state
+    // where the pattern shifts right by one each generation.
+    //
+    // We can use this to get the formula:
+    //   sum = (gen + 36) * 52
+    //
+    // Thus at gen 5,000,000,000 the sum of pots with plants is 2,600,000,001,872.
 }
 
 fn read_input() -> World {
@@ -22,7 +32,7 @@ fn read_input() -> World {
         .expect("Failed to read input");
 
     let mut state = [false; N_POTS];
-    let mut rules = Vec::new();
+    let mut rules = HashMap::new();
 
     for (n, line) in input.lines().enumerate() {
         if n == 0 {
@@ -32,8 +42,8 @@ fn read_input() -> World {
             let mut input = [false; WINDOW];
             input.copy_from_slice(&parse(&line[..5]));
             let output = &line[9..10] == "#";
-            rules.push((input, output));
-            println!("{} -> {}", &line[..5], &line[9..10]);
+            rules.insert(input, output);
+            //println!("{} -> {}", &line[..5], &line[9..10]);
         }
     }
 
@@ -46,21 +56,19 @@ fn parse(input: &str) -> Vec<bool> {
 
 struct World {
     state: [bool; N_POTS],
-    rules: Vec<([bool; WINDOW], bool)>,
-    generation: u32,
+    rules: HashMap<[bool; WINDOW], bool>,
+    generation: u64,
 }
 
 impl World {
     fn tick(&mut self) {
         let mut state = [false; N_POTS];
         for idx in 0..=N_POTS-WINDOW {
-            let last_window = &self.state[idx..idx+WINDOW];
+            let mut last_window = [false; WINDOW];
+            last_window.copy_from_slice( &self.state[idx..idx+WINDOW]);
             let window = &mut state[idx..idx+WINDOW];
-            for (rule, result) in &self.rules {
-                if last_window == rule {
-                    window[2] = *result;
-                    break
-                }
+            if let Some(result) = self.rules.get(&last_window) {
+                window[2] = *result;
             }
         }
         self.state = state;
@@ -69,7 +77,7 @@ impl World {
 
     fn print(&self) {
         let line: Vec<&str> = self.state.iter().map(|&b| if b { "#" } else { "." }).collect();
-        println!("{:2}: {}", self.generation, line.join(""))
+        println!("{:3} [{:5}] {}", self.generation, self.sum(), line.join(""))
     }
 
     fn sum(&self) -> i32 {
