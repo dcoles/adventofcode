@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fs;
 
 const UP: char = '^';
@@ -12,18 +12,45 @@ const HTRACK: char = '-';
 const XSECT: char = '+';
 
 fn main() {
-    let mut world = World::from_file("input.txt");
+    // Part 1
+    run_until_first_crash(World::from_file("input.txt"));
 
+    // Part 2
+    run_until_all_but_one_crashed(World::from_file("input.txt"));
+}
+
+fn run_until_first_crash(mut world: World) {
+    println!("PART 1");
+    println!("Initial state");
     world.print();
-    loop {
-        if let Err(err) = world.tick() {
-            world.print();
-            println!("Oh no! {}", err);
-            break;
-        }
-        world.print();
+    while world.num_cart_crashed() == 0 && world.t < 16 {
+        world.tick();
     }
+    println!();
 
+    println!("Final state (first crash)");
+    world.print();
+    for cart in &world.carts {
+        println!("Cart{} at {},{}", if cart.crashed { " [crashed]" } else { "" },
+                 cart.position.0, cart.position.1)
+    }
+}
+
+fn run_until_all_but_one_crashed(mut world: World) {
+    println!("PART 2");
+    println!("Initial state");
+    world.print();
+    while world.num_cart_crashed() < world.carts.len() - 1 {
+        world.tick();
+    }
+    println!();
+
+    println!("Final state (all but one cart crashed)");
+    world.print();
+    for cart in &world.carts {
+        println!("Cart{} at {},{}", if cart.crashed { " [crashed]" } else { "" },
+                 cart.position.0, cart.position.1)
+    }
 }
 
 struct World {
@@ -61,7 +88,9 @@ impl World {
 
         // Add carts to map
         for cart in &self.carts {
-            map[cart.position.1][cart.position.0] = cart.direction;
+            if !cart.crashed {
+                map[cart.position.1][cart.position.0] = cart.direction;
+            }
         }
 
         // Show map
@@ -78,23 +107,32 @@ impl World {
         }
     }
 
-    fn tick(&mut self) -> Result<(), String> {
+    fn tick(&mut self)  {
         // Sort by row, then column
         self.carts.sort_by_key(|c| (c.position.1, c.position.0));
 
-        let mut positions = HashSet::new();
-        for cart in &mut self.carts {
-            if positions.contains(&cart.position) {
-                return Err(format!("Carts crashed at {},{}", cart.position.0, cart.position.1))
+        let mut positions: HashMap<(usize, usize), &mut Cart> = HashMap::new();
+        for cart in self.carts.iter_mut().filter(|c| !c.crashed) {
+            // Has anyone crashed into us?
+            if let Some(other_cart) = positions.get_mut(&cart.position) {
+                cart.crashed = true;
+                other_cart.crashed = true;
+                continue;
             }
-            println!("Moving cart at {},{}", cart.position.0, cart.position.1);
+
             let track = self.map[cart.position.1][cart.position.0];
             cart.tick(track);
-            positions.insert(cart.position);
+
+            // Have we just crashed into anyone?
+            if let Some(other_cart) = positions.get_mut(&cart.position) {
+                cart.crashed = true;
+                other_cart.crashed = true;
+                continue;
+            }
+
+            positions.insert(cart.position, cart);
         }
         self.t += 1;
-
-        Ok(())
     }
 
     fn is_cart(c: char) -> bool {
@@ -110,17 +148,22 @@ impl World {
             panic!("Unknown value {:?}", c);
         }
     }
+
+    fn num_cart_crashed(&self) -> usize {
+        self.carts.iter().filter(|&c| c.crashed).count()
+    }
 }
 
 struct Cart {
     position: (usize, usize),
     direction: char,
     n_xsect: u32,
+    crashed: bool,
 }
 
 impl Cart {
     fn new(position: (usize, usize), direction: char) -> Cart {
-        Cart { position, direction, n_xsect: 0 }
+        Cart { position, direction, n_xsect: 0, crashed: false }
     }
 
     fn tick(&mut self, track: char) {
