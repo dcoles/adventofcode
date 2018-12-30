@@ -29,6 +29,7 @@ fn main() {
 struct World {
     map: Vec<Vec<char>>,
     carts: Vec<Cart>,
+    t: u32,
 }
 
 impl World {
@@ -52,7 +53,7 @@ impl World {
             map.push(line_map);
         }
 
-        World { map, carts }
+        World { map, carts, t: 0 }
     }
 
     fn print(&self) {
@@ -83,15 +84,17 @@ impl World {
 
         let mut positions = HashSet::new();
         for cart in &mut self.carts {
-            println!("Moving cart at {},{}", cart.position.0, cart.position.1);
-            let track = self.map[cart.position.1][cart.position.0];
-            cart.tick(track);
             if positions.contains(&cart.position) {
                 return Err(format!("Carts crashed at {},{}", cart.position.0, cart.position.1))
             }
+            println!("Moving cart at {},{}", cart.position.0, cart.position.1);
+            let track = self.map[cart.position.1][cart.position.0];
+            cart.tick(track);
             positions.insert(cart.position);
         }
-        return Ok(());
+        self.t += 1;
+
+        Ok(())
     }
 
     fn is_cart(c: char) -> bool {
