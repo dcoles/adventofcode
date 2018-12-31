@@ -8,9 +8,12 @@ const DEBUG: bool = false;
 
 fn main() {
     part1();
+    println!();
+    part2();
 }
 
 fn part1() {
+    println!("PART 1");
     let mut world = World::from_file("input.txt");
     world.print();
 
@@ -24,6 +27,35 @@ fn part1() {
     let elf_total_hp: i32 = world.chars.iter().filter(|c| c.race == 'E').map(|c| c.hp).sum();
     println!("Goblins have {} total hit points left", goblin_total_hp);
     println!("Elves have {} total hit points left", elf_total_hp);
+}
+
+fn part2() {
+    println!("PART 2");
+    for ap in 4.. {
+        println!("Trial with Elves {} attack power...", ap);
+        let mut world = World::from_file("input.txt");
+        for c in &mut world.chars {
+            if c.race == 'E' {
+                c.ap = ap;
+            }
+        }
+
+        while world.round() {
+            ();
+        }
+
+        println!("  Combat ends after {} full rounds", world.n_rounds);
+        let goblin_total_hp: i32 = world.chars.iter().filter(|c| c.race == 'G').map(|c| c.hp).sum();
+        let elf_deaths = world.chars.iter().filter(|c| c.race == 'E' && c.is_dead()).count();
+        let elf_total_hp: i32 = world.chars.iter().filter(|c| c.race == 'E').map(|c| c.hp).sum();
+        println!("  Goblins have {} total hit points left", goblin_total_hp);
+        println!("  Elves have {} total hit points left ({} deaths)", elf_total_hp, elf_deaths);
+
+        if elf_deaths == 0 {
+            break;
+        }
+    }
+
 }
 
 type Map = Vec<Vec<char>>;
@@ -125,8 +157,7 @@ impl World {
 
                 // Where should we move?
                 if let Some(pos) = character.plan_move(&open_tiles, &map) {
-                    println!("{} moving to {},{}", character, pos.0, pos.1);
-
+                    if DEBUG { println!("{} moving to {},{}", character, pos.0, pos.1) };
                     self.chars[n].position = pos;
                 } else {
                     // End-turn
@@ -144,7 +175,7 @@ impl World {
             in_range.sort_by_key(|&(_, c)| (c.hp, c.position.1, c.position.0));
 
             if let Some(&(m, _)) = in_range.first() {
-                println!("{} attacks {}", character, self.chars[m]);
+                if DEBUG { println!("{} attacks {}", character, self.chars[m]) };
                 self.chars[m].harm(ap);
             }
         }
