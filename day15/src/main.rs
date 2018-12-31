@@ -1,17 +1,29 @@
 use std::collections::HashSet;
+use std::fmt;
 use std::fs;
 
 const INF: i32 = std::i32::MAX;
 const UNSET: i32 = -1;
+const DEBUG: bool = false;
 
 fn main() {
-    let mut world = World::from_file("sample2.txt");
+    part1();
+}
+
+fn part1() {
+    let mut world = World::from_file("input.txt");
     world.print();
 
-    for _ in 0..10 {
-        world.round();
+    while world.round() {
         world.print();
     }
+    world.print();
+
+    println!("Combat ends after {} full rounds", world.n_rounds);
+    let goblin_total_hp: i32 = world.chars.iter().filter(|c| c.race == 'G').map(|c| c.hp).sum();
+    let elf_total_hp: i32 = world.chars.iter().filter(|c| c.race == 'E').map(|c| c.hp).sum();
+    println!("Goblins have {} total hit points left", goblin_total_hp);
+    println!("Elves have {} total hit points left", elf_total_hp);
 }
 
 type Map = Vec<Vec<char>>;
@@ -20,6 +32,7 @@ type DistanceMap = Vec<Vec<i32>>;
 struct World {
     map: Map,
     chars: Vec<Character>,
+    n_rounds: u32,
 }
 
 impl World {
@@ -42,7 +55,7 @@ impl World {
             map.push(line_map);
         }
 
-        World { map, chars }
+        World { map, chars, n_rounds: 0 }
     }
 
     fn is_character(c: char) -> bool {
@@ -51,6 +64,13 @@ impl World {
 
     fn print(&self) {
         let map = map_with_characters(&self.map, &self.chars);
+
+        println!("End of round {}", self.n_rounds);
+        let mut chars = self.chars.clone();
+        chars.sort_by_key(|c| (c.position.1, c.position.0));
+        for c in &chars {
+            println!("- {}", c);
+        }
 
         for (y, line) in map.iter().enumerate() {
             print!("{:2} ", y);
@@ -67,64 +87,75 @@ impl World {
     }
 
 
-    fn round(&mut self) {
-        let mut chars = self.chars.clone();
-
+    fn round(&mut self) -> bool {
         // Actions are performed in reading order
-        chars.sort_by_key(|c| (c.position.1, c.position.0));
+        self.chars.sort_by_key(|c| (c.position.1, c.position.0));
 
         for n in 0..self.chars.len() {
-            if chars[n].dead() {
+            let character = &self.chars[n];
+            if character.is_dead() {
                 // He's dead Jim
                 continue
             }
 
-            let map = map_with_characters(&self.map, &chars);
-            let targets: Vec<_> = chars.iter().filter(|c| chars[n].is_target(c)).collect();
+            let map = map_with_characters(&self.map, &self.chars);
+            let targets: Vec<_> = self.chars.iter().filter(|c|
+                character.is_target(c)
+            ).collect();
             if targets.is_empty() {
                 // Combat ends
-                panic!("No targets remain!")
+                return false;
             }
 
-            let in_range: Vec<&Character> = chars.iter().filter(|c| chars[n].is_in_range(c.position) && chars[n].is_target(c)).collect();
+            let in_range: Vec<&Character> = self.chars.iter().filter(|c|
+                character.is_in_range(c.position) && character.is_target(c)
+            ).collect();
 
             // No one in range? Try moving
             if in_range.is_empty() {
                 // Identify open tiles
                 let mut open_tiles = HashSet::new();
                 for target in targets {
-                    open_tiles.extend(target.adjacent().iter().filter(|&&p| self.is_empty_tile(p)))
+                    open_tiles.extend(target.adjacent().iter()
+                        .filter(|&&p|
+                            self.is_empty_tile(p)
+                        )
+                    );
                 }
 
                 // Where should we move?
-                if let Some(pos) = chars[n].plan_move(&open_tiles, &map) {
-                    println!("{} at {},{} moving to {},{}",
-                             chars[n].race, chars[n].position.0, chars[n].position.1,
-                             pos.0, pos.1);
+                if let Some(pos) = character.plan_move(&open_tiles, &map) {
+                    println!("{} moving to {},{}", character, pos.0, pos.1);
 
-                    chars[n].position = pos;
+                    self.chars[n].position = pos;
                 } else {
                     // End-turn
                     continue;
                 }
             }
 
-            // Re-calculate if anyone is in range
-            let mut in_range: Vec<&Character> = chars.iter().filter(|c| chars[n].is_in_range(c.position) && chars[n].is_target(c)).collect();
-            in_range.sort_by_key(|c| (c.position.1, c.position.0));
+            let character = &self.chars[n];
+            let ap = character.ap;
+            let mut in_range: Vec<_> = self.chars.iter()
+                .enumerate()
+                .filter(|&(_, c)|
+                    character.is_in_range(c.position) && character.is_target(c)
+                ).collect();
+            in_range.sort_by_key(|&(_, c)| (c.hp, c.position.1, c.position.0));
 
-            // Attack!
-            if !in_range.is_empty() {
-                println!("Can attack {:?}", in_range);
+            if let Some(&(m, _)) = in_range.first() {
+                println!("{} attacks {}", character, self.chars[m]);
+                self.chars[m].harm(ap);
             }
         }
+        self.n_rounds += 1;
 
-        self.chars = chars;
+        true
     }
 
     fn is_empty_tile(&self, position: Pos) -> bool {
         self.map[position.1][position.0] == '.'
-            && self.chars.iter().all(|c| c.position != position)
+            && self.chars.iter().all(|c| c.position != position || c.is_dead())
     }
 
     fn adjacent(position: Pos) -> Vec<Pos> {
@@ -135,7 +166,6 @@ impl World {
             ( position.0, position.1 + 1),
         ].to_vec()
     }
-
 }
 
 type Pos = (usize, usize);
@@ -144,8 +174,14 @@ type Pos = (usize, usize);
 struct Character {
     race: char,
     position: Pos,
-    ap: u32,
-    hp: u32,
+    ap: i32,
+    hp: i32,
+}
+
+impl fmt::Display for Character {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}@{},{} [{:3}hp]", self.race, self.position.0, self.position.1, self.hp)
+    }
 }
 
 impl Character {
@@ -153,12 +189,16 @@ impl Character {
         Character { race, position, ap: 3, hp: 200 }
     }
 
-    fn dead(&self) -> bool {
+    fn harm(&mut self, hp: i32) {
+        self.hp = 0.max(self.hp - hp);
+    }
+
+    fn is_dead(&self) -> bool {
         self.hp <= 0
     }
 
     fn is_target(&self, character: &Character) -> bool {
-        character.race != self.race
+        character.race != self.race && !character.is_dead()
     }
 
     fn is_in_range(&self, position: Pos) -> bool {
@@ -171,11 +211,13 @@ impl Character {
 
     fn plan_move(&self, targets: &HashSet<Pos>, map: &Map) -> Option<Pos> {
         if targets.is_empty() {
+            if DEBUG { println!("{} has no targets!", self) };
             return None;
         }
 
         let reachable = reachable_distance(targets, self.position, &map);
         if reachable.is_empty() {
+            if DEBUG { println!("{} has no reachable targets!", self) };
             return None;
         }
 
@@ -183,10 +225,8 @@ impl Character {
         let &(target, _distance) = reachable.first().unwrap();
         let distance_map = build_distance_map(target, &map);
 
-        // For debugging
-        //print_distance_map(&distance_map);
+        if DEBUG { print_distance_map(&distance_map) };
 
-        let adjacent = self.adjacent();
         let mut adjacent: Vec<Pos> = self.adjacent().into_iter().filter(|&p| distance_map[p.1][p.0] >= 0).collect();
         adjacent.sort_by_key(|&p| (distance_map[p.1][p.0], p.1, p.0));
 
@@ -214,7 +254,7 @@ fn map_with_characters(map: &Map, characters: &Vec<Character>) -> Map {
     let mut map = map.clone();
 
     for character in characters {
-        if character.dead() {
+        if character.is_dead() {
             continue;
         }
         map[character.position.1][character.position.0] = character.race;
