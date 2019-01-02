@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::fs;
 
-const WIDTH: usize = 600;
+const WIDTH: usize = 300;
 const OFFSET: usize = 300;
 const SPRING: (usize, usize) = (500, 0);
 const N_ITERATIONS: usize = 1000;
@@ -98,7 +98,7 @@ type Pos = (usize, usize);
 impl Map {
     fn print(&self) {
         for (y, row) in self.cells.iter().enumerate() {
-            print!("{:3}: ", y);
+            print!("{:4}: ", y);
             for &cell in &row[..] {
                 match cell {
                     '+' => print!("\x1b[31m{}\x1b[0m", cell),
