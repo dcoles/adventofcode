@@ -13,15 +13,24 @@ fn main() {
     for c in input {
         let n = map.get(pos);
         match c {
-            '^' => (),
+            '^' => continue,
             'N' => pos = (pos.0, pos.1 - 1),
             'S' => pos = (pos.0, pos.1 + 1),
             'E' => pos = (pos.0 + 1, pos.1),
             'W' => pos = (pos.0 - 1, pos.1),
-            '(' => stack.push(pos),
-            '|' => pos = *stack.last().unwrap(),
-            ')' => { stack.pop(); },
-            '$' => (),
+            '(' => {
+                stack.push(pos);
+                continue;
+            },
+            '|' => {
+                pos = *stack.last().unwrap();
+                continue;
+            },
+            ')' => {
+                stack.pop();
+                continue;
+            },
+            '$' => continue,
             _ => panic!("Unknown tile {:?}", c),
         }
         if map.get(pos) == 0 {
@@ -30,12 +39,12 @@ fn main() {
         }
     }
     map.print();
-    println!("Largest number of doors required to reach a room is {}", n_max - 1);
+    println!("Largest number of doors required to reach a room is {}", n_max);
 
     let mut count = 0;
     for row in &map.tiles[..] {
         for &cell in &row[..] {
-            if cell > 1000 {
+            if cell >= 1000 {
                 count += 1;
             }
         }
