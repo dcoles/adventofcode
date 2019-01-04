@@ -4,7 +4,12 @@ const DEBUG: bool = false;
 
 fn main() {
     let input = read_input("input.txt");
-    input.run();
+
+    // Part 1
+    input.run([0, 0, 0, 0, 0, 0]);
+
+    // Part 2
+    input.run([1, 0, 0, 0, 0, 0]);
 }
 
 fn read_input(filename: &str) -> Program {
@@ -36,15 +41,20 @@ struct Program {
 }
 
 impl Program {
-    fn run(&self) {
+    fn run(&self, reg: Registers) {
         let mut ip = 0;
-        let mut reg: Registers = Default::default();
+        let mut reg: Registers = reg;
         while ip < self.instructions.len() {
+
             let (opcode, a, b, c) = self.instructions[ip];
             if let Some(ip_reg) = self.ip_reg {
                 reg[ip_reg] = ip;
             }
-            opcode.call(&mut reg, a, b, c);
+            if ip == 1 {
+                self.inner_loop(&mut reg);
+            } else {
+                opcode.call(&mut reg, a, b, c);
+            }
             if let Some(ip_reg) = self.ip_reg {
                 ip = reg[ip_reg];
             }
@@ -53,6 +63,27 @@ impl Program {
         }
 
         println!("HALT ip={} reg={:?}", ip, reg);
+    }
+
+    fn inner_loop(&self, reg: &mut Registers) {
+        let mut a = reg[0];
+        let mut b = reg[1];
+        let mut c = reg[2];
+        let mut d = reg[3];
+        let mut ip = reg[5];
+
+        for c in 1..=d {
+            if d % c == 0 {
+                a += c;
+            }
+        }
+        ip = 256;
+
+        reg[0] = a;
+        reg[1] = b;
+        reg[2] = c;
+        reg[3] = d;
+        reg[5] = ip;
     }
 }
 
