@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 
 const DEBUG: bool = false;
@@ -6,11 +7,29 @@ fn main() {
     let input = read_input("input.txt");
 
     // Part 1
-    let mut reg = [0, 0, 0, 0, 0, 0];
-    input.run(&mut reg, 28);  // Break at halt condition
-    let key = reg[5];  // Grab the expected value
-    let mut reg = [key, 0, 0, 0, 0, 0];
-    input.run(&mut reg, std::usize::MAX);
+    let mut executor = Executor::new();
+    executor.run(&input, |ip, _reg| ip == 28);  // Break at halt condition
+    let key = executor.reg[5];  // Grab the expected value
+    let mut executor = Executor::new();
+    executor.reg[0] = key;
+    executor.run(&input, |_,_| false);
+    println!("The lowest non-negative integer value for register 0 that causes a halt is {}", key);
+
+    // Part 2
+    let mut last = 0;
+    let mut seen = HashSet::new();
+    let mut executor = Executor::new();
+    executor.run(&input, |ip, reg| {
+        if ip == 28 {
+            if seen.contains(&reg[5]) {
+                return true;
+            }
+            seen.insert(reg[5]);
+            last = reg[5];
+        }
+        false
+    });  // Break at halt condition
+    println!("The lowest non-negative integer value for register 0 that causes a halt after the most instructions is {}", last);
 }
 
 fn read_input(filename: &str) -> Program {
@@ -41,27 +60,35 @@ struct Program {
     instructions: Vec<Instruction>,
 }
 
-impl Program {
-    fn run(&self, mut reg: &mut Registers, break_at: usize) -> usize {
-        let mut n = 0;
-        let mut ip = 0;
-        while ip < self.instructions.len() && ip != break_at {
-            let (opcode, a, b, c) = self.instructions[ip];
-            if let Some(ip_reg) = self.ip_reg {
-                reg[ip_reg] = ip;
+struct Executor {
+    ip: usize,
+    reg: [usize; 6]
+}
+
+impl Executor {
+    fn new() -> Executor {
+        Executor { ip: 0, reg: Default::default() }
+    }
+
+    fn run<F>(&mut self, program: &Program, mut break_if: F)
+    where F: FnMut(usize, &Registers) -> bool {
+        while self.ip < program.instructions.len() {
+            if break_if(self.ip, &self.reg) {
+                break;
             }
-            opcode.call(&mut reg, a, b, c);
-            if let Some(ip_reg) = self.ip_reg {
-                ip = reg[ip_reg];
+            let (opcode, a, b, c) = program.instructions[self.ip];
+            if let Some(ip_reg) = program.ip_reg {
+                self.reg[ip_reg] = self.ip;
             }
-            if DEBUG { println!("ip={} {:?}", ip, reg) };
-            ip += 1;
-            n += 1;
+            opcode.call(&mut self.reg, a, b, c);
+            if let Some(ip_reg) = program.ip_reg {
+                self.ip = self.reg[ip_reg];
+            }
+            if DEBUG { println!("ip={} {:?}", self.ip, self.reg) };
+            self.ip += 1;
         }
 
-        println!("HALT ip={} reg={:?}", ip, reg);
-
-        n
+        println!("HALT ip={} reg={:?}", self.ip, self.reg);
     }
 }
 
