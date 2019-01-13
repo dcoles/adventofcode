@@ -4,17 +4,52 @@ use std::fs;
 use regex::Regex;
 
 fn main() {
+    part1();
+    part2();
+}
+
+fn part1() {
+    println!("PART 1");
     let mut world = World::from_file("input.txt");
 
     loop {
-        let n_immune = world.everyone_alive().iter().filter(|g| g.team == Team::ImmuneSystem).count();
-        let n_infection = world.everyone_alive().iter().filter(|g| g.team == Team::ImmuneSystem).count();
-        if n_immune == 0 || n_infection == 0 {
+        if world.n_immune() == 0 || world.n_infection() == 0 {
             break;
         }
-        world.fight();
+        world.fight(true);
     }
     world.print_summary();
+}
+
+fn part2() {
+    println!("PART 2");
+
+    let original_world = World::from_file("input.txt");
+
+    for boost in 1.. {
+        let mut world = original_world.clone();
+
+        // Boost immune system
+        println!("Boosting immune system by {}", boost);
+        for (&(team, _), group) in &mut world.groups {
+            if team == Team::ImmuneSystem {
+                group.ap += boost;
+            }
+        }
+
+        for _ in 0..1000 {
+            if world.n_immune() == 0 || world.n_infection() == 0 {
+                break;
+            }
+            world.fight(false);
+        }
+        world.print_summary();
+
+        if world.everyone_alive().iter().filter(|g| g.team == Team::Infection).count() == 0 {
+            // Immune system wins
+            break;
+        }
+    }
 }
 
 fn parse_group(team: Team, id: u32, group: &str) -> Group {
@@ -43,7 +78,7 @@ fn parse_group(team: Team, id: u32, group: &str) -> Group {
     Group { team, id, n, hp, ap, initiative, attack_type, weakness, immunity }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct World {
     groups: HashMap<(Team, u32), Group>,
 }
@@ -79,6 +114,14 @@ impl World {
         self.groups.values().filter(|g| g.is_alive()).collect()
     }
 
+    fn n_immune(&self) -> usize {
+        self.everyone_alive().iter().filter(|g| g.team == Team::ImmuneSystem).count()
+    }
+
+    fn n_infection(&self) -> usize {
+        self.everyone_alive().iter().filter(|g| g.team == Team::ImmuneSystem).count()
+    }
+
     fn print_summary(&self) {
         for &team in &[Team::ImmuneSystem, Team::Infection] {
             println!("{:?}:", team);
@@ -92,14 +135,14 @@ impl World {
         println!();
     }
 
-    fn fight(&mut self) {
+    fn fight(&mut self, debug: bool) {
         // Target selection
         let mut everyone = self.everyone_alive();
         let mut all_targets: HashSet<_> = everyone.iter().map(|g| (g.team, g.id)).collect();
 
         everyone.sort_by_key(|g| (-g.effective_power(), -g.initiative));
 
-        self.print_summary();
+        if debug { self.print_summary() };
 
         let mut selected_target = HashMap::new();
         for group in &everyone {
@@ -109,9 +152,11 @@ impl World {
             if let Some(&&target_id) = targets.first() {
                 let target_group = self.groups.get(&target_id).unwrap();
                 let damage = group.damage(&target_group);
-                println!("Group {:?} would deal {:?} {} damage", (group.team, group.id), target_id, damage);
-                selected_target.insert((group.team, group.id), target_id);
-                all_targets.remove(&target_id);
+                if debug { println!("Group {:?} would deal {:?} {} damage", (group.team, group.id), target_id, damage) };
+                if damage > 0 {
+                    selected_target.insert((group.team, group.id), target_id);
+                    all_targets.remove(&target_id);
+                }
             }
         }
 
@@ -129,16 +174,16 @@ impl World {
                 let target = self.groups.get(&target_id).unwrap();
                 let kills = target.n.min(group.damage(target) / target.hp);
                 self.groups.entry(target_id).and_modify(|g| {
-                    println!("Group {:?} attacks {:?}, killing {} units", group_team_id, target_id, kills);
+                    if debug { println!("Group {:?} attacks {:?}, killing {} units", group_team_id, target_id, kills) };
                     g.n -= kills;
                 });
             }
         }
-        println!();
+        if debug { println!() };
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Group {
     team: Team,
     id: u32,
@@ -187,7 +232,7 @@ impl Team {
     }
 }
 
-#[derive(Eq, PartialEq, Hash, Debug)]
+#[derive(Eq, PartialEq, Hash, Debug, Copy, Clone)]
 enum Type {
     Slashing,
     Bludgeoning,
