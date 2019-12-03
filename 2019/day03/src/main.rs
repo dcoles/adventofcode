@@ -6,11 +6,14 @@ const ORIGIN: Pos = (0, 0);
 
 fn main() {
     let input = read_input("input.txt");
+    for wire in &input {
+        println!("{}", wire.iter().map(Move::to_string).collect::<Vec<_>>().join(","));
+    }
 
     // Part 1
     let mut grid: HashSet<Pos> = HashSet::new();
     let mut intersections: Vec<Pos> = Vec::new();
-    for wire in input {
+    for wire in &input {
         // Check for any intersections
         let mut positions: Vec<Pos> = Vec::new();
         let mut pos = ORIGIN;
@@ -33,7 +36,29 @@ fn main() {
 
     intersections.sort_by_key(|&p| distance(ORIGIN, p));
     let closest = intersections[0];
-    println!("{:?} (distance: {})", closest, distance(ORIGIN, closest));
+    println!("Part 1: {:?} (distance: {})", closest, distance(ORIGIN, closest));
+
+    // Part 2
+    let mut signal_delays = Vec::new();
+    for &intersection in &intersections {
+        let mut steps = 0;
+        for wire in &input {
+            let mut pos = ORIGIN;
+            'outer: for m in wire {
+                let line_positions = m.new_pos(pos);
+                for &pos in &line_positions {
+                    steps += 1;
+                    if pos == intersection {
+                        break 'outer;
+                    }
+                }
+                pos = *line_positions.last().unwrap();
+            }
+        }
+        signal_delays.push(steps);
+    }
+    signal_delays.sort();
+    println!("Part 2: Fewest combined steps: {}", signal_delays[0]);
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Vec<Vec<Move>> {
