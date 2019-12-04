@@ -30,8 +30,8 @@ fn valid2(n: u32) -> bool {
 
 fn digits_never_decrease(n: u32) -> bool {
     let mut last_digit = 0;
-    for digit in digits(n) {
-        if digit < last_digit {
+    for digit in Digits::new(n) {
+        if last_digit > digit {
             return false;
         }
         last_digit = digit;
@@ -42,19 +42,43 @@ fn digits_never_decrease(n: u32) -> bool {
 
 fn count_digits(n: u32) -> HashMap<u32, u32> {
     let mut counter = HashMap::new();
-    for digit in digits(n) {
+    for digit in Digits::new(n) {
         *counter.entry(digit).or_default() += 1;
     }
     counter
 }
 
-fn digits(mut n: u32) -> Vec<u32> {
-    let mut digits = Vec::new();
-    while n > 0 {
-        digits.push(n % 10);
-        n /= 10;
-    }
+// Iterates over digits in left-to-right order.
+struct Digits {
+    n: u32,
+    ndigits: u32,
+    pos: u32,
+}
 
-    digits.reverse();
-    digits
+impl Digits {
+    fn new(n: u32) -> Self {
+        let mut ndigits = 0;
+        let mut m = n;
+        while m > 0 {
+            ndigits += 1;
+            m /= 10;
+        }
+
+        Digits { n, ndigits, pos: 1 }
+    }
+}
+
+impl Iterator for Digits {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<u32> {
+        if self.pos > self.ndigits {
+            return None
+        }
+
+        let digit = self.n / 10u32.pow(self.ndigits - self.pos) % 10;
+        self.pos += 1;
+
+        Some(digit)
+    }
 }
