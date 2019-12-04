@@ -1,3 +1,5 @@
+// Version that operates with modulo arithmatic.
+
 use std::collections::HashMap;
 
 const INPUT: std::ops::RangeInclusive<u32> = 372037..=905157;
