@@ -48,6 +48,21 @@ fn count_digits(n: u32) -> HashMap<u32, u32> {
     counter
 }
 
+fn ndigits(n: u32) -> u32 {
+    match n {
+        1000000000..=std::u32::MAX => 10,
+        100000000..=999999999 => 9,
+        10000000..=99999999 => 8,
+        1000000..=9999999 => 7,
+        100000..=999999 => 6,
+        10000..=99999 => 5,
+        1000..=9999 => 4,
+        100..=999 => 3,
+        10..=99 => 2,
+        0..=9 => 1
+    }
+}
+
 // Iterates over digits in left-to-right order.
 struct Digits {
     n: u32,
@@ -57,14 +72,7 @@ struct Digits {
 
 impl Digits {
     fn new(n: u32) -> Self {
-        let mut ndigits = 0;
-        let mut m = n;
-        while m > 0 {
-            ndigits += 1;
-            m /= 10;
-        }
-
-        Digits { n, ndigits, pos: 1 }
+        Digits { n, ndigits: ndigits(n), pos: 1 }
     }
 }
 
