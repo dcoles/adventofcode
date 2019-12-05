@@ -23,33 +23,32 @@ fn main() {
 
     // Testing
     println!("== Testing ==");
-    let mut comp = IntcodeEmulator::new();
-    comp.stdin().push(1);
-    comp.load_program(&vec![3,0,4,0,99]);
-    comp.run();
-    println!("STDOUT: {:?}", comp.stdout());
-    assert_eq!(&vec![Word::from(1)], comp.stdout());
+    let stdout = run(&vec![3,0,4,0,99], vec![1]);
+    println!("STDOUT: {:?}", stdout);
+    assert_eq!(vec![1], stdout);
 
     // Part 1
     println!("== Part 1 ==");
-    let mut comp = IntcodeEmulator::new();
-    comp.stdin().push(1);
-    comp.load_program(&input);
-    comp.run();
-    println!("STDOUT: {:?}", comp.stdout());
+    println!("STDOUT: {:?}", run(&input, vec![1]));
 
     // Part 2
     println!("== Part 2 ==");
-    let mut comp = IntcodeEmulator::new();
-    comp.stdin().push(5);
-    comp.load_program(&input);
-    comp.run();
-    println!("STDOUT: {:?}", comp.stdout());
+    println!("STDOUT: {:?}", run(&input, vec![5]));
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Program {
     let contents = fs::read_to_string(path).expect("Failed to read input");
     contents.trim().split(",").map(|line| line.parse::<Word>().expect("Failed to parse input")).collect()
+}
+
+/// Run a single program on an IntcodeEmulator
+fn run(program: &Program, stdin: Vec<Word>) -> Vec<Word> {
+    let mut cpu = IntcodeEmulator::new();
+    *cpu.stdin() = stdin;
+    cpu.load_program(program);
+    cpu.run();
+
+    cpu.stdout().clone()
 }
 
 struct IntcodeEmulator {
