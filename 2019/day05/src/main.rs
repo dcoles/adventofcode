@@ -1,188 +1,201 @@
-use std::{fs, ops};
+use std::fs;
 use std::path::Path;
-use std::ops::Index;
 
 type Word = i32;
 
 const MODE_POSITION: Word = 0;
 const MODE_IMMEDIATE: Word = 1;
 
-const OP_ADD: Word = 1;  // r[p3] = r[p1] + r[p2]
-const OP_MUL: Word = 2;  // r[p3] = r[p1] * r[p2]
-const OP_INPUT: Word = 3;  // r[p1] = read(STDIN)
-const OP_OUTPUT: Word = 4;  // write(STDOUT) = r[p1]
-const OP_JUMP_IF_TRUE: Word = 5;  // if r[p1] != 0 { ip = r[p2] }
-const OP_JUMP_IF_FALSE: Word = 6; // if r[p1] == 0 { ip = r[p2] }
-const OP_LT: Word = 7;  // r[p3] = if r[p1] < r[p2] { 1 } else { 0 }
-const OP_EQ: Word = 8;  // r[p3] = if r[p1] == r[p2] { 1 } else { 0 }
-const OP_HALT: Word = 99;
+const OP_ADD: Word = 1;  // [p3] = [p1] + [p2]
+const OP_MUL: Word = 2;  // [p3] = [p1] * [p2]
+const OP_INPUT: Word = 3;  // [p1] = read(STDIN)
+const OP_OUTPUT: Word = 4;  // write(STDOUT) = [p1]
+const OP_JUMP_IF_TRUE: Word = 5;  // if [p1] != 0 { ip = [p2] }
+const OP_JUMP_IF_FALSE: Word = 6; // if [p1] == 0 { ip = [p2] }
+const OP_LT: Word = 7;  // [p3] = if [p1] < [p2] { 1 } else { 0 }
+const OP_EQ: Word = 8;  // [p3] = if [p1] == [p2] { 1 } else { 0 }
+const OP_HALT: Word = 99;  // ...but don't catch fire
+
+type Program = Vec<Word>;
 
 fn main() {
     let input = read_input("input.txt");
 
     // Testing
     println!("== Testing ==");
-    let program = Program(vec![3,0,4,0,99]);
-    let mut stdin = vec![1];
-    let mut stdout = Vec::new();
-    run(&program, &mut stdin, &mut stdout);
-    println!("STDOUT: {:?}", stdout);
-    assert_eq!(vec![1], stdout);
+    let mut comp = IntcodeEmulator::new();
+    comp.stdin().push(1);
+    comp.load_program(&vec![3,0,4,0,99]);
+    comp.run();
+    println!("STDOUT: {:?}", comp.stdout());
+    assert_eq!(&vec![Word::from(1)], comp.stdout());
 
     // Part 1
     println!("== Part 1 ==");
-    let mut stdin = vec![1];  // air conditioner unit ID
-    let mut stdout = Vec::new();
-    run(&input, &mut stdin, &mut stdout);
-    println!("STDOUT: {:?}", stdout);
+    let mut comp = IntcodeEmulator::new();
+    comp.stdin().push(1);
+    comp.load_program(&input);
+    comp.run();
+    println!("STDOUT: {:?}", comp.stdout());
 
     // Part 2
     println!("== Part 2 ==");
-    let mut stdin = vec![5];  // thermal radiator controller ID
-    let mut stdout = Vec::new();
-    run(&input, &mut stdin, &mut stdout);
-    println!("STDOUT: {:?}", stdout);
+    let mut comp = IntcodeEmulator::new();
+    comp.stdin().push(5);
+    comp.load_program(&input);
+    comp.run();
+    println!("STDOUT: {:?}", comp.stdout());
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Program {
     let contents = fs::read_to_string(path).expect("Failed to read input");
-    let instructions = contents.trim().split(",").map(|line| line.parse::<Word>().expect("Failed to parse input")).collect();
-
-    Program(instructions)
+    contents.trim().split(",").map(|line| line.parse::<Word>().expect("Failed to parse input")).collect()
 }
 
-fn run(program: &Program, stdin: &mut Vec<Word>, stdout: &mut Vec<Word>) {
-    let mut mem = program.clone();  // Load program into memory
-    let mut ip = 0;
-    loop {
-        let mode_op = mem[ip];
-        let op = mode_op % 100;
-        let mode = mode_op / 100;
-        println!("{:08x} {}", ip, opcode_to_str(op));
+struct IntcodeEmulator {
+    ip: usize,
+    mem: Vec<Word>,
+    stdin: Vec<Word>,
+    stdout: Vec<Word>,
+}
+
+impl IntcodeEmulator {
+    /// Create a new IntcodeEmulator
+    fn new() -> IntcodeEmulator {
+        IntcodeEmulator { ip: 0, mem: vec![OP_HALT], stdin: Vec::new(), stdout: Vec::new() }
+    }
+
+    /// Input stream
+    fn stdin(&mut self) -> &mut Vec<Word> {
+        &mut self.stdin
+    }
+
+    /// Output stream
+    fn stdout(&mut self) -> &mut Vec<Word> {
+        &mut self.stdout
+    }
+
+    /// Load a program into memory
+    fn load_program(&mut self, program: &Program) {
+        self.mem = program.clone();
+    }
+
+    /// Run a program
+    fn run(&mut self) {
+        self.ip = 0;
+        while self.op() != OP_HALT {
+            self.step()
+        }
+    }
+
+    fn step(&mut self) {
+        let op = self.op();
+        println!("{:08x} {}", self.ip, IntcodeEmulator::opcode_to_str(op));
         match op {
             OP_ADD => {
-                let (p1, m1) = param1(&mem, ip, mode);
-                let (p2, m2) = param2(&mem, ip, mode);
-                let (p3, m3) = param3(&mem, ip, mode);
-                *mem.store(p3, m3) = mem.load(p1, m1) + mem.load(p2, m2);
-                ip += 4;
+                *self.store(self.p3()) = self.load(self.p1()) + self.load(self.p2());
+                self.ip += 4;
             },
             OP_MUL => {
-                let (p1, m1) = param1(&mem, ip, mode);
-                let (p2, m2) = param2(&mem, ip, mode);
-                let (p3, m3) = param3(&mem, ip, mode);
-                *mem.store(p3, m3) = mem.load(p1, m1) * mem.load(p2, m2);
-                ip += 4;
+                *self.store(self.p3()) = self.load(self.p1()) * self.load(self.p2());
+                self.ip += 4;
             },
             OP_INPUT => {
-                let (p1, m1) = param1(&mem, ip, mode);
-                *mem.store(p1, m1) = stdin.pop().expect("STDIN EOF");
-                ip += 2;
+                *self.store(self.p1()) = self.stdin.pop().expect("STDIN EOF");
+                self.ip += 2;
             },
             OP_OUTPUT => {
-                let (p1, m1) = param1(&mem, ip, mode);
-                stdout.push(mem.load(p1, m1));
-                ip += 2;
+                self.stdout.push(self.load(self.p1()));
+                self.ip += 2;
             },
             OP_JUMP_IF_TRUE => {
-                let (p1, m1) = param1(&mem, ip, mode);
-                let (p2, m2) = param2(&mem, ip, mode);
-                if mem.load(p1, m1) != 0 {
-                    ip = mem.load(p2, m2);
-                    continue;
+                if self.load(self.p1()) != 0 {
+                    self.ip = self.load(self.p2()) as usize;
+                    return;
                 }
-                ip += 3;
+                self.ip += 3;
             },
             OP_JUMP_IF_FALSE => {
-                let (p1, m1) = param1(&mem, ip, mode);
-                let (p2, m2) = param2(&mem, ip, mode);
-                if mem.load(p1, m1) == 0 {
-                    ip = mem.load(p2, m2);
-                    continue;
+                if self.load(self.p1()) == 0 {
+                    self.ip = self.load(self.p2()) as usize;
+                    return;
                 }
-                ip += 3;
+                self.ip += 3;
             },
             OP_LT => {
-                let (p1, m1) = param1(&mem, ip, mode);
-                let (p2, m2) = param2(&mem, ip, mode);
-                let (p3, m3) = param3(&mem, ip, mode);
-                *mem.store(p3, m3) = if mem.load(p1, m1) < mem.load(p2, m2) { 1 } else { 0 };
-                ip += 4;
+                *self.store(self.p3()) = if self.load(self.p1()) < self.load(self.p2()) { 1 } else { 0 };
+                self.ip += 4;
             },
             OP_EQ => {
-                let (p1, m1) = param1(&mem, ip, mode);
-                let (p2, m2) = param2(&mem, ip, mode);
-                let (p3, m3) = param3(&mem, ip, mode);
-                *mem.store(p3, m3) = if mem.load(p1, m1) == mem.load(p2, m2) { 1 } else { 0 };
-                ip += 4;
+                *self.store(self.p3()) = if self.load(self.p1()) == self.load(self.p2()) { 1 } else { 0 };
+                self.ip += 4;
             },
-            OP_HALT => {
-                ip += 1;
-                break;
-            },
-            _ => panic!("Unknown opcode {} @ {:08x}", op, ip),
-        }
+            OP_HALT => return,
+            _ => panic!("Unknown opcode {} @ {:08x}", op, self.ip),
+        };
     }
-}
 
-fn param1(mem: &Program, ip: Word, mode: Word) -> (Word, Word) {
-    (mem[ip+1], mode % 10)
-}
-
-fn param2(mem: &Program, ip: Word, mode: Word) -> (Word, Word) {
-    (mem[ip+2], mode / 10 % 10)
-}
-
-fn param3(mem: &Program, ip: Word, mode: Word) -> (Word, Word) {
-    (mem[ip+3], mode / 100 % 10)
-}
-
-fn opcode_to_str(opcode: Word) -> &'static str {
-    match opcode {
-        OP_ADD => "ADD",
-        OP_MUL => "MUL",
-        OP_INPUT => "INPUT",
-        OP_OUTPUT => "OUTPUT",
-        OP_JUMP_IF_TRUE => "JMPTRUE",
-        OP_JUMP_IF_FALSE => "JMPFALSE",
-        OP_LT => "CMPLT",
-        OP_EQ => "CMPEQ",
-        OP_HALT => "HALT",
-        _ => "UNKNOWN",
+    /// The current instruction's op-code
+    fn op(&self) -> Word {
+        self.mem[self.ip] % 100
     }
-}
 
-#[derive(Clone)]
-struct Program(Vec<Word>);
+    /// The current instruction's parameter modes
+    fn modes(&self) -> Word {
+        self.mem[self.ip] / 100
+    }
 
-impl Program {
-    fn load(&self, param: Word, mode: Word) -> Word {
-        match mode {
-            MODE_POSITION => self[param],
-            MODE_IMMEDIATE => param,
-            _ => panic!("Unknown mode {}", mode),
+    /// Load a value from memory
+    fn load(&self, param: Param) -> Word {
+        match param.mode {
+            MODE_POSITION => self.mem[param.value as usize],
+            MODE_IMMEDIATE => param.value,
+            _ => panic!("Unknown mode {}", param.mode),
         }
     }
 
-    fn store(&mut self, param: Word, mode: Word) -> &mut Word {
-        match mode {
-            MODE_POSITION => &mut self[param],
+    /// Store a value to memory
+    fn store(&mut self, param: Param) -> &mut Word {
+        match param.mode {
+            MODE_POSITION => &mut self.mem[param.value as usize],
             MODE_IMMEDIATE => panic!("Illegal store in immediate mode"),
-            _ => panic!("Unknown mode {}", mode),
+            _ => panic!("Unknown mode {}", param.mode),
+        }
+    }
+
+    /// First parameter
+    fn p1(&self) -> Param {
+        Param { value: self.mem[self.ip+1], mode: self.modes() % 10 }
+    }
+
+    /// Second parameter
+    fn p2(&self) -> Param {
+        Param { value: self.mem[self.ip+2], mode: self.modes() / 10 % 10 }
+    }
+
+    /// Third parameter
+    fn p3(&self) -> Param {
+        Param { value: self.mem[self.ip+3], mode: self.modes() / 100 % 10 }
+    }
+
+    fn opcode_to_str(opcode: Word) -> &'static str {
+        match opcode {
+            OP_ADD => "ADD",
+            OP_MUL => "MUL",
+            OP_INPUT => "INPUT",
+            OP_OUTPUT => "OUTPUT",
+            OP_JUMP_IF_TRUE => "JMPTRUE",
+            OP_JUMP_IF_FALSE => "JMPFALSE",
+            OP_LT => "CMPLT",
+            OP_EQ => "CMPEQ",
+            OP_HALT => "HALT",
+            _ => "UNKNOWN",
         }
     }
 }
 
-impl ops::Index<Word> for Program {
-    type Output = Word;
-
-    fn index(&self, index: Word) -> &Self::Output {
-        &self.0[index as usize]
-    }
-}
-
-impl ops::IndexMut<Word> for Program {
-    fn index_mut(&mut self, index: Word) -> &mut Self::Output {
-        &mut self.0[index as usize]
-    }
+#[derive(Copy, Clone)]
+struct Param {
+    value: Word,
+    mode: Word,
 }
