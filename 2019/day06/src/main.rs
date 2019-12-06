@@ -1,29 +1,49 @@
 use std::fs;
 use std::path::Path;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 type Obj = [char; 3];
+
+const COM: Obj = ['C', 'O', 'M'];
+const YOU: Obj = ['Y', 'O', 'U'];
+const SANTA: Obj = ['S', 'A', 'N'];
 
 fn main() {
     let input = read_input("input.txt");
 
     // Part 1
     // Maps object to the object it's orbiting
-    let mut orbits: HashMap<Obj, Obj> = HashMap::new();
+    let mut obj_orbits: HashMap<Obj, Obj> = HashMap::new();
     for &(a, b) in &input {
-        orbits.insert(b, a);
+        obj_orbits.insert(b, a);
     }
 
     let mut count = 0;
-    for &obj in orbits.keys() {
-        let mut obj = obj;
-        while let Some(&parent) = orbits.get(&obj) {
-            obj = parent;
-            count += 1;
-        }
+    for &obj in obj_orbits.keys() {
+        count += orbital_distances(&obj_orbits, obj).len();
     }
 
     println!("Part 1: Count of direct and indirect orbits {}", count);
+
+    // Part 2
+    let santa_orbital_dist = orbital_distances(&obj_orbits, SANTA);
+    let you_orbital_dist = orbital_distances(&obj_orbits, YOU);
+
+    let mut santa_orbits_by_dist: Vec<Obj> = santa_orbital_dist.keys().cloned().collect();
+    santa_orbits_by_dist.sort_by_key(|&obj| santa_orbital_dist[&obj]);
+
+    // Find the first common object
+    let mut common_obj = COM;
+    for &obj in &santa_orbits_by_dist {
+        if you_orbital_dist.contains_key(&obj) {
+            common_obj = obj;
+            break;
+        }
+    }
+
+    // How many transfers are required to get to the common object
+    let transfers = santa_orbital_dist[&common_obj] + you_orbital_dist[&common_obj];
+    println!("Part 2: Orbital transfers required {}", transfers);
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Vec<(Obj, Obj)> {
@@ -36,6 +56,19 @@ fn read_input<T: AsRef<Path>>(path: T) -> Vec<(Obj, Obj)> {
         let obja = [char::from(a[0]), char::from(a[1]), char::from(a[2])];
         let objb = [char::from(b[0]), char::from(b[1]), char::from(b[2])];
         orbits.push((obja , objb))
+    }
+
+    orbits
+}
+
+fn orbital_distances(obj_orbits: &HashMap<Obj, Obj>, start: Obj) -> HashMap<Obj, u32> {
+    let mut orbits = HashMap::new();
+    let mut obj = start;
+    let mut dist = 0;
+    while let Some(&parent) = obj_orbits.get(&obj) {
+        orbits.insert(parent, dist);
+        obj = parent;
+        dist += 1;
     }
 
     orbits
