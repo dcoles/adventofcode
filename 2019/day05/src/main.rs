@@ -146,35 +146,36 @@ impl IntcodeEmulator {
 
     /// Load a value from memory
     fn load(&self, param: Param) -> Word {
-        match param.mode {
-            MODE_POSITION => self.mem[param.value as usize],
-            MODE_IMMEDIATE => param.value,
-            _ => panic!("Unknown mode {}", param.mode),
+        match param {
+            Param::Position(addr) => self.mem[addr],
+            Param::Immediate(value) => value,
         }
     }
 
     /// Store a value to memory
     fn store(&mut self, param: Param) -> &mut Word {
-        match param.mode {
-            MODE_POSITION => &mut self.mem[param.value as usize],
-            MODE_IMMEDIATE => panic!("Illegal store in immediate mode"),
-            _ => panic!("Unknown mode {}", param.mode),
+        match param {
+            Param::Position(addr) => &mut self.mem[addr],
+            Param::Immediate(_) => panic!("Illegal store in immediate mode"),
         }
     }
 
     /// First parameter
     fn p1(&self) -> Param {
-        Param { value: self.mem[self.ip+1], mode: self.modes() % 10 }
+        let mode = self.modes() % 10;
+        Param::new(self.mem[self.ip+1], mode).expect("Unknown mode")
     }
 
     /// Second parameter
     fn p2(&self) -> Param {
-        Param { value: self.mem[self.ip+2], mode: self.modes() / 10 % 10 }
+        let mode = self.modes() / 10 % 10;
+        Param::new(self.mem[self.ip+2], mode).expect("Unknown mode")
     }
 
     /// Third parameter
     fn p3(&self) -> Param {
-        Param { value: self.mem[self.ip+3], mode: self.modes() / 100 % 10 }
+        let mode = self.modes() / 100 % 10;
+        Param::new(self.mem[self.ip+3], mode).expect("Unknown mode")
     }
 
     fn opcode_to_str(opcode: Word) -> &'static str {
@@ -193,8 +194,17 @@ impl IntcodeEmulator {
     }
 }
 
-#[derive(Copy, Clone)]
-struct Param {
-    value: Word,
-    mode: Word,
+enum Param {
+    Position(usize),
+    Immediate(Word),
+}
+
+impl Param {
+    fn new(value: Word, mode: Word) -> Option<Param> {
+        match mode {
+            MODE_POSITION => Some(Param::Position(value as usize)),
+            MODE_IMMEDIATE => Some(Param::Immediate(value)),
+            _ => None,
+        }
+    }
 }
