@@ -1,12 +1,26 @@
-use std::fs;
+use std::{fs, fmt};
 use std::path::Path;
 use std::collections::HashMap;
 
-type Obj = [char; 3];
+#[derive(Hash, Eq, PartialEq, Copy, Clone)]
+struct Obj([u8; 3]);
 
-const COM: Obj = ['C', 'O', 'M'];
-const YOU: Obj = ['Y', 'O', 'U'];
-const SANTA: Obj = ['S', 'A', 'N'];
+impl Obj {
+    const fn from_str(s: &str) -> Obj {
+        let bytes = s.as_bytes();
+        Obj([bytes[0], bytes[1], bytes[2]])
+    }
+}
+
+impl fmt::Display for Obj {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", String::from_utf8_lossy(&self.0))
+    }
+}
+
+const COM: Obj = Obj::from_str("COM");
+const YOU: Obj = Obj::from_str("YOU");
+const SANTA: Obj = Obj::from_str("SAN");
 
 fn main() {
     let input = read_input("input.txt");
@@ -51,10 +65,8 @@ fn read_input<T: AsRef<Path>>(path: T) -> Vec<(Obj, Obj)> {
     let contents = fs::read_to_string(path).expect("Failed to read input");
     for line in contents.lines() {
         let mut vals = line.split(')');
-        let a = vals.next().unwrap().as_bytes();
-        let b = vals.next().unwrap().as_bytes();
-        let obja = [char::from(a[0]), char::from(a[1]), char::from(a[2])];
-        let objb = [char::from(b[0]), char::from(b[1]), char::from(b[2])];
+        let obja = Obj::from_str(vals.next().expect("Missing value"));
+        let objb = Obj::from_str(vals.next().expect("Missing value"));
         orbits.push((obja , objb))
     }
 
