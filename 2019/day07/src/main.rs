@@ -117,23 +117,28 @@ fn run_pipeline(phases: &[Word], program: &[Word], feedback: bool) -> Word {
 /// Calculate all permutations of a slice
 fn permutations(input: &[Word]) -> Vec<Vec<Word>> {
     let mut input = input.to_owned();
-    let mut output = Vec::new();
     let len = input.len();
-    permutations_(&mut output, &mut input, 0, len);
 
-    output
-}
+    fn permutations_(input: &mut [Word], k: usize) -> Vec<Vec<Word>> {
+        if k == 1 {
+            return vec![input.to_vec()];
+        }
 
-fn permutations_(output: &mut Vec<Vec<Word>>, input: &mut Vec<Word>, start: usize, end: usize) {
-    if start == end {
-        output.push(input.clone());
+        let mut output = permutations_(input, k - 1);
+        for i in 0..k-1 {
+            if k % 2 == 0 {
+                input.swap(i, k - 1);
+            } else {
+                input.swap(0, k - 1)
+            }
+            let mut perms = permutations_(input, k - 1);
+            output.append(&mut perms);
+        }
+
+        output
     }
 
-    for i in start..end {
-        input.swap(start, i);
-        permutations_(output, input, start+1, end);
-        input.swap(start, i);
-    }
+    permutations_(&mut input, len)
 }
 
 /// Emulates an Intcode computer
