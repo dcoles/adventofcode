@@ -1,6 +1,9 @@
+#![allow(clippy::unreadable_literal)]
+
 use std::fs;
 use std::path::Path;
 use std::collections::VecDeque;
+use std::convert::TryInto;
 
 type Word = i32;
 
@@ -21,21 +24,27 @@ const DEBUG: bool = false;
 
 struct Program(Vec<Word>);
 
+impl Program {
+    fn new(instructions: &[Word]) -> Program {
+        Program(instructions.to_owned())
+    }
+}
+
 fn main() {
     let input = read_input("input.txt");
 
     // Part 1
     assert_eq!(43210,
                run_pipeline(&[4, 3, 2, 1, 0],
-                            &Program(vec![3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0]),
+                            &Program::new(&[3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0]),
                             false));
     assert_eq!(54321,
                run_pipeline(&[0, 1, 2, 3, 4],
-                            &Program(vec![3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23, 99, 0, 0]),
+                            &Program::new(&[3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23, 99, 0, 0]),
                             false));
     assert_eq!(65210,
                run_pipeline(&[1, 0, 4, 3, 2],
-                            &Program(vec![3, 31, 3, 32, 1002, 32, 10, 32, 1001, 31, -2, 31, 1007, 31, 0, 33, 1002, 33, 7, 33, 1, 33, 31, 31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0]),
+                            &Program::new(&[3, 31, 3, 32, 1002, 32, 10, 32, 1001, 31, -2, 31, 1007, 31, 0, 33, 1002, 33, 7, 33, 1, 33, 31, 31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0]),
                             false));
 
 
@@ -45,12 +54,12 @@ fn main() {
     // Part 2
     assert_eq!(139629729,
                find_max(&[9,8,7,6,5],
-                        &Program(vec![3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5]),
+                        &Program::new(&[3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5]),
                         true).0);
 
     assert_eq!(18216,
                find_max(&[9,8,7,6,5],
-                        &Program(vec![3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,-5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10]),
+                        &Program::new(&[3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,-5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10]),
                         true).0);
 
     let (max_thrust, phase) = find_max(&[5,6,7,8,9], &input, true);
@@ -122,6 +131,8 @@ fn run_pipeline(phases: &[Word], program: &Program, feedback: bool) -> Word {
                 // Schedule downstream amp as it can now make progress
                 runqueue.push_back((i + 1) % amplifiers.len())
             },
+            Exception::IllegalInstruction(word) => panic!("Illegal instruction {}", word),
+            Exception::SegmentationFault(word) => panic!("Segmentation fault at {:08x}", word),
         }
     }
 
@@ -182,69 +193,75 @@ impl IntcodeEmulator {
     /// Run a program until an exception is encountered
     fn run(&mut self) -> Exception {
         loop {
-            if let Some(exception) = self.step() {
+            if let Err(exception) = self.step() {
                 return exception;
             }
         }
     }
 
     /// Try to step a single instruction
-    fn step(&mut self) -> Option<Exception> {
+    fn step(&mut self) -> Result<(), Exception> {
+        if self.ip >= self.mem.len() {
+            return Err(Exception::SegmentationFault(self.ip));
+        }
+
         let op = self.op();
         if DEBUG {
             println!("{:08x} {}", self.ip, IntcodeEmulator::opcode_to_str(op));
         }
         match op {
             OP_ADD => {
-                *self.store(self.p3()) = self.load(self.p1()) + self.load(self.p2());
+                *self.store(3)? = self.load(1)? + self.load(2)?;
                 self.ip += 4;
             },
             OP_MUL => {
-                *self.store(self.p3()) = self.load(self.p1()) * self.load(self.p2());
+                *self.store(3)? = self.load(1)? * self.load(2)?;
                 self.ip += 4;
             },
             OP_INPUT => {
                 if let Some(input) = self.input.pop_front() {
-                    *self.store(self.p1()) = input;
+                    *self.store(1)? = input;
                     self.ip += 2;
                 } else {
                     // Upcall to request input
-                    return Some(Exception::Input);
+                    return Err(Exception::Input);
                 }
             },
             OP_OUTPUT => {
-                let output = self.load(self.p1());
+                let output = self.load(1)?;
                 self.ip += 2;
                 // Upcall for output
-                return Some(Exception::Output(output));
+                return Err(Exception::Output(output));
             },
             OP_JUMP_IF_TRUE => {
-                if self.load(self.p1()) != 0 {
-                    self.ip = self.load(self.p2()) as usize;
+                if self.load(1)? != 0 {
+                    self.ip = self.load(2)?.try_into()  // must not be negative
+                        .or(Err(Exception::IllegalInstruction(op)))?;
                 } else {
                     self.ip += 3;
                 }
             },
             OP_JUMP_IF_FALSE => {
-                if self.load(self.p1()) == 0 {
-                    self.ip = self.load(self.p2()) as usize;
+                if self.load(1)? == 0 {
+                    self.ip = self.load(2)?.try_into()  // must not be negative
+                        .or(Err(Exception::IllegalInstruction(op)))?;
                 } else {
                     self.ip += 3;
                 }
             },
             OP_LT => {
-                *self.store(self.p3()) = if self.load(self.p1()) < self.load(self.p2()) { 1 } else { 0 };
+                *self.store(3)? = if self.load(1)? < self.load(2)? { 1 } else { 0 };
                 self.ip += 4;
             },
             OP_EQ => {
-                *self.store(self.p3()) = if self.load(self.p1()) == self.load(self.p2()) { 1 } else { 0 };
+                *self.store(3)? = if self.load(1)? == self.load(2)? { 1 } else { 0 };
                 self.ip += 4;
             },
-            OP_HALT => return Some(Exception::Halt),
-            _ => panic!("Unknown opcode {} @ {:08x}", op, self.ip),
+            OP_HALT => return Err(Exception::Halt),
+            _ => return Err(Exception::IllegalInstruction(op)),
         };
 
-        None
+        Ok(())
     }
 
     /// The current instruction's op-code
@@ -258,37 +275,50 @@ impl IntcodeEmulator {
     }
 
     /// Load a value from memory
-    fn load(&self, param: Param) -> Word {
-        match param {
-            Param::Position(addr) => self.mem[addr],
-            Param::Immediate(value) => value,
+    fn load(&self, param: usize) -> Result<Word, Exception> {
+        let mode = self.mode(param)?;
+        let addr = self.ip + param;
+        let value = self.mem.get(addr).copied().ok_or(Exception::SegmentationFault(addr))?;
+        match mode {
+            MODE_POSITION => {
+                // Must not be negative
+                let addr = value.try_into().or_else(|_| Err(Exception::IllegalInstruction(self.op())))?;
+                self.mem.get(addr).copied().ok_or(Exception::SegmentationFault(addr))
+            },
+            MODE_IMMEDIATE => Ok(value),
+            _ => Err(Exception::IllegalInstruction(self.op()))
         }
     }
 
     /// Store a value to memory
-    fn store(&mut self, param: Param) -> &mut Word {
-        match param {
-            Param::Position(addr) => &mut self.mem[addr],
-            Param::Immediate(_) => panic!("Illegal store in immediate mode"),
+    fn store(&mut self, param: usize) -> Result<&mut Word, Exception> {
+        let mode = self.mode(param)?;
+        let addr = self.ip + param;
+        let value = self.mem.get(addr).copied().ok_or(Exception::SegmentationFault(addr))?;
+        match mode {
+            MODE_POSITION => {
+                // Must not be negative
+                let addr = value.try_into().or_else(|_| Err(Exception::IllegalInstruction(self.op())))?;
+                self.mem.get_mut(addr).ok_or(Exception::SegmentationFault(addr))
+            },
+            MODE_IMMEDIATE => {
+                // Illegal store in immediate mode
+                Err(Exception::IllegalInstruction(self.op()))
+            },
+            _ => Err(Exception::IllegalInstruction(self.op())),
         }
     }
 
-    /// First parameter
-    fn p1(&self) -> Param {
-        let mode = self.modes() % 10;
-        Param::new(self.mem[self.ip+1], mode).expect("Unknown mode")
-    }
+    /// Mode for parameter
+    #[allow(clippy::identity_conversion)]
+    fn mode(&self, param: usize) -> Result<Word, Exception> {
+        if param == 0 {
+            // Can't have a 0-th parameter
+            return Err(Exception::IllegalInstruction(self.op()));
+        }
+        let exponent = param.checked_sub(1).unwrap() as u32;
 
-    /// Second parameter
-    fn p2(&self) -> Param {
-        let mode = self.modes() / 10 % 10;
-        Param::new(self.mem[self.ip+2], mode).expect("Unknown mode")
-    }
-
-    /// Third parameter
-    fn p3(&self) -> Param {
-        let mode = self.modes() / 100 % 10;
-        Param::new(self.mem[self.ip+3], mode).expect("Unknown mode")
+        Ok(self.modes() / Word::from(10).pow(exponent) % 10)
     }
 
     /// Return the mnemonic for an opcode
@@ -311,22 +341,8 @@ impl IntcodeEmulator {
 /// Exception status
 enum Exception {
     Halt,
+    IllegalInstruction(Word),
+    SegmentationFault(usize),
     Input,
     Output(Word),
-}
-
-/// Instruction parameters
-enum Param {
-    Position(usize),
-    Immediate(Word),
-}
-
-impl Param {
-    fn new(value: Word, mode: Word) -> Option<Param> {
-        match mode {
-            MODE_POSITION => Some(Param::Position(value as usize)),
-            MODE_IMMEDIATE => Some(Param::Immediate(value)),
-            _ => None,
-        }
-    }
 }
