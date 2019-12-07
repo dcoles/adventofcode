@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::Path;
-use std::sync::mpsc::{channel, Sender, Receiver};
-use std::thread;
+use std::collections::VecDeque;
 
 type Word = i32;
 
@@ -20,52 +19,53 @@ const OP_HALT: Word = 99;  // ...but don't catch fire
 
 const DEBUG: bool = false;
 
-type Program = Vec<Word>;
-
 fn main() {
     let input = read_input("input.txt");
 
     // Part 1
     assert_eq!(43210,
-               run_pipeline1(&vec![4, 3, 2, 1, 0],
-                             &vec![3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0]));
+               run_pipeline(&[4, 3, 2, 1, 0],
+                            &[3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0],
+                            false));
     assert_eq!(54321,
-               run_pipeline1(&vec![0, 1, 2, 3, 4],
-                             &vec![3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23, 99, 0, 0]));
+               run_pipeline(&[0, 1, 2, 3, 4],
+                            &[3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23, 99, 0, 0],
+                            false));
     assert_eq!(65210,
-               run_pipeline1(&vec![1, 0, 4, 3, 2],
-                             &vec![3, 31, 3, 32, 1002, 32, 10, 32, 1001, 31, -2, 31, 1007, 31, 0, 33, 1002, 33, 7, 33, 1, 33, 31, 31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0]));
+               run_pipeline(&[1, 0, 4, 3, 2],
+                            &[3, 31, 3, 32, 1002, 32, 10, 32, 1001, 31, -2, 31, 1007, 31, 0, 33, 1002, 33, 7, 33, 1, 33, 31, 31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0],
+                            false));
 
 
-    let (max_thrust, phase) = find_max(run_pipeline1, &vec![0,1,2,3,4], &input);
+    let (max_thrust, phase) = find_max(&[0,1,2,3,4], &input, false);
     println!("Part 1: Max thrust is {} ({:?})", max_thrust, phase);
 
     // Part 2
     assert_eq!(139629729,
-               find_max(run_pipeline2,
-                        &vec![9,8,7,6,5],
-                        &vec![3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5]).0);
+               find_max(&[9,8,7,6,5],
+                        &[3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5],
+                        true).0);
 
     assert_eq!(18216,
-               find_max(run_pipeline2,
-                        &vec![9,8,7,6,5],
-                        &vec![3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,-5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10]).0);
+               find_max(&[9,8,7,6,5],
+                        &[3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,-5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10],
+                        true).0);
 
-    let (max_thrust, phase) = find_max(run_pipeline2, &vec![5,6,7,8,9], &input);
+    let (max_thrust, phase) = find_max(&[5,6,7,8,9], &input, true);
     println!("Part 2: Max thrust is {} ({:?})", max_thrust, phase);
 }
 
-fn read_input<T: AsRef<Path>>(path: T) -> Program {
+fn read_input<T: AsRef<Path>>(path: T) -> Vec<Word> {
     let contents = fs::read_to_string(path).expect("Failed to read input");
-    contents.trim().split(",").map(|line| line.parse::<Word>().expect("Failed to parse input")).collect()
+    contents.trim().split(',').map(|line| line.parse::<Word>().expect("Failed to parse input")).collect()
 }
 
-fn find_max<F>(run_pipeline: F, phases: &Vec<Word>, program: &Program) -> (Word, Vec<Word>)
-    where F: Fn(&Vec<Word>, &Program) -> Word {
+/// Find the permutation of phases that gives the maximum thrust
+fn find_max(phases: &[Word], program: &[Word], feedback: bool) -> (Word, Vec<Word>) {
     let mut max_thrust = 0;
     let mut phase = Vec::new();
     for perm in permutations(phases) {
-        let thrust = run_pipeline(&perm, program);
+        let thrust = run_pipeline(&perm, program, feedback);
         if thrust > max_thrust {
             max_thrust = thrust;
             phase = perm;
@@ -75,48 +75,48 @@ fn find_max<F>(run_pipeline: F, phases: &Vec<Word>, program: &Program) -> (Word,
     (max_thrust, phase)
 }
 
-fn run_pipeline1(phases: &Vec<Word>, program: &Program) -> Word {
-    // Setup and run amplifiers in sequence
-    let mut input = 0;
-    for i in 0..phases.len() {
-        let stdin = vec![phases[i], input];
-        input = run(program, &stdin);
-    }
-
-    input
-}
-
-fn run_pipeline2(phases: &Vec<Word>, program: &Program) -> Word {
+/// Run a pipeline of amplifiers
+fn run_pipeline(phases: &[Word], program: &[Word], feedback: bool) -> Word {
     // Set up amplifiers
-    let mut pipes = Vec::new();
-    for i in 0..phases.len() {
-        let (stdin_source, stdin_sink) = channel();
-        let (stdout_source, stdout_sink) = channel();
-        let program = program.clone();
-        thread::spawn(move || {
-            let mut cpu = IntcodeEmulator::new(stdin_sink, stdout_source);
-            cpu.load_program(&program);
-            cpu.run();
-        });
-        stdin_source.send(phases[i]).expect("Failed to write phase to STDIN");
-        pipes.push((stdin_source, stdout_sink));
+    let mut amplifiers = Vec::new();
+    for &phase in phases {
+        let mut amp = IntcodeEmulator::new();
+        amp.load_program(&program);
+        amp.add_input(phase);
+        amplifiers.push(amp);
     }
 
     // Write initial input
-    pipes[0].0.send(0).expect("Failed to write initial value to STDIN");
+    amplifiers[0].add_input(0);
 
     // Drive the pipeline until it halts
+    let mut output = 0;
     for i in (0..phases.len()).cycle() {
-        let v = pipes[i].1.recv().expect("Pipe failed to read from STDOUT");
-        if let Err(_) = pipes[(i + 1) % phases.len()].0.send(v) {
-            return v;
+        match amplifiers[i].run() {
+            Exception::Halt => break,
+            Exception::Input => panic!("EOF reading from STDIN"),
+            Exception::Output(out) => {
+                // Last amp outputs to thrusters
+                if i == phases.len() - 1 {
+                    output = out;
+                    if feedback {
+                        // Feedback into first amplifier
+                        amplifiers[0].add_input(out);
+                    }
+                } else {
+                    // Feed into next amplifier
+                    amplifiers[i + 1].add_input(out);
+                }
+            },
         }
     }
-    unreachable!()
+
+    output
 }
 
-fn permutations(input: &Vec<Word>) -> Vec<Vec<Word>> {
-    let mut input = input.clone();
+/// Calculate all permutations of a slice
+fn permutations(input: &[Word]) -> Vec<Vec<Word>> {
+    let mut input = input.to_owned();
     let mut output = Vec::new();
     let len = input.len();
     permutations_(&mut output, &mut input, 0, len);
@@ -136,49 +136,41 @@ fn permutations_(output: &mut Vec<Vec<Word>>, input: &mut Vec<Word>, start: usiz
     }
 }
 
-/// Run a single program on an IntcodeEmulator
-fn run(program: &Program, stdin: &Vec<Word>) -> Word {
-    let (stdin_source, stdin_sink) = channel();
-    let (stdout_source, stdout_sink) = channel();
-
-    for &val in stdin {
-        stdin_source.send(val).expect("Failed to write to STDIN");
-    }
-
-    let mut cpu = IntcodeEmulator::new(stdin_sink, stdout_source);
-    cpu.load_program(program);
-    cpu.run();
-
-    stdout_sink.recv().expect("Failed to read stdout")
-}
-
+/// Emulates an Intcode computer
 struct IntcodeEmulator {
     ip: usize,
     mem: Vec<Word>,
-    stdin: Receiver<Word>,
-    stdout: Sender<Word>,
+    input: VecDeque<Word>,
 }
 
 impl IntcodeEmulator {
     /// Create a new IntcodeEmulator
-    fn new(stdin: Receiver<Word>, stdout: Sender<Word>) -> IntcodeEmulator {
-        IntcodeEmulator { ip: 0, mem: vec![OP_HALT], stdin, stdout }
+    fn new() -> IntcodeEmulator {
+        IntcodeEmulator { ip: 0, mem: vec![OP_HALT], input: VecDeque::new() }
     }
 
     /// Load a program into memory
-    fn load_program(&mut self, program: &Program) {
-        self.mem = program.clone();
+    fn load_program(&mut self, program: &[Word]) {
+        self.ip = 0;
+        self.mem = program.to_owned();
     }
 
-    /// Run a program
-    fn run(&mut self) {
-        self.ip = 0;
-        while self.op() != OP_HALT {
-            self.step()
+    /// Queue input
+    fn add_input(&mut self, input: Word) {
+        self.input.push_back(input);
+    }
+
+    /// Run a program until an exception is encountered
+    fn run(&mut self) -> Exception {
+        loop {
+            if let Some(exception) = self.step() {
+                return exception;
+            }
         }
     }
 
-    fn step(&mut self) {
+    /// Try to step a single instruction
+    fn step(&mut self) -> Option<Exception> {
         let op = self.op();
         if DEBUG {
             println!("{:08x} {}", self.ip, IntcodeEmulator::opcode_to_str(op));
@@ -193,26 +185,33 @@ impl IntcodeEmulator {
                 self.ip += 4;
             },
             OP_INPUT => {
-                *self.store(self.p1()) = self.stdin.recv().expect("STDIN EOF");
-                self.ip += 2;
+                if let Some(input) = self.input.pop_front() {
+                    *self.store(self.p1()) = input;
+                    self.ip += 2;
+                } else {
+                    // Upcall for input
+                    return Some(Exception::Input);
+                }
             },
             OP_OUTPUT => {
-                self.stdout.send(self.load(self.p1())).expect("Failed to write to STDOUT");
+                let output = self.load(self.p1());
                 self.ip += 2;
+                // Upcall for output
+                return Some(Exception::Output(output));
             },
             OP_JUMP_IF_TRUE => {
                 if self.load(self.p1()) != 0 {
                     self.ip = self.load(self.p2()) as usize;
-                    return;
+                } else {
+                    self.ip += 3;
                 }
-                self.ip += 3;
             },
             OP_JUMP_IF_FALSE => {
                 if self.load(self.p1()) == 0 {
                     self.ip = self.load(self.p2()) as usize;
-                    return;
+                } else {
+                    self.ip += 3;
                 }
-                self.ip += 3;
             },
             OP_LT => {
                 *self.store(self.p3()) = if self.load(self.p1()) < self.load(self.p2()) { 1 } else { 0 };
@@ -222,9 +221,11 @@ impl IntcodeEmulator {
                 *self.store(self.p3()) = if self.load(self.p1()) == self.load(self.p2()) { 1 } else { 0 };
                 self.ip += 4;
             },
-            OP_HALT => return,
+            OP_HALT => return Some(Exception::Halt),
             _ => panic!("Unknown opcode {} @ {:08x}", op, self.ip),
         };
+
+        None
     }
 
     /// The current instruction's op-code
@@ -271,6 +272,7 @@ impl IntcodeEmulator {
         Param::new(self.mem[self.ip+3], mode).expect("Unknown mode")
     }
 
+    /// Return the mnemonic for an opcode
     fn opcode_to_str(opcode: Word) -> &'static str {
         match opcode {
             OP_ADD => "ADD",
@@ -285,6 +287,13 @@ impl IntcodeEmulator {
             _ => "UNKNOWN",
         }
     }
+}
+
+/// Exception status
+enum Exception {
+    Halt,
+    Input,
+    Output(Word),
 }
 
 enum Param {
