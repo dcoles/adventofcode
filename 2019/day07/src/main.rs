@@ -86,18 +86,25 @@ fn run_pipeline(phases: &[Word], program: &[Word], feedback: bool) -> Word {
         amplifiers.push(amp);
     }
 
-    // Write initial input
+    // Feed initial input into first amp
     amplifiers[0].add_input(0);
+
+    // Queue of amps to run
+    let mut runqueue = VecDeque::new();
+    runqueue.push_back(0);  // Schedule first amp
 
     // Drive the pipeline until it halts
     let mut output = 0;
-    for i in (0..phases.len()).cycle() {
+    while let Some(i) = runqueue.pop_front() {
         match amplifiers[i].run() {
-            Exception::Halt => break,
-            Exception::Input => panic!("EOF reading from STDIN"),
+            Exception::Halt => (),
+            Exception::Input => {
+                // Schedule upstream amp to get more input
+                runqueue.push_back((i - 1) % amplifiers.len());
+            },
             Exception::Output(out) => {
-                // Last amp outputs to thrusters
-                if i == phases.len() - 1 {
+                if i == amplifiers.len() - 1 {
+                    // Last amp outputs to thrusters
                     output = out;
                     if feedback {
                         // Feedback into first amplifier
@@ -107,6 +114,9 @@ fn run_pipeline(phases: &[Word], program: &[Word], feedback: bool) -> Word {
                     // Feed into next amplifier
                     amplifiers[i + 1].add_input(out);
                 }
+
+                // Schedule downstream amp as it can now make progress
+                runqueue.push_back((i + 1) % amplifiers.len())
             },
         }
     }
