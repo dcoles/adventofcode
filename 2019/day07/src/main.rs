@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 use std::sync::mpsc::{channel, Sender, Receiver};
+use std::thread;
 
 type Word = i32;
 
@@ -24,29 +25,34 @@ type Program = Vec<Word>;
 fn main() {
     let input = read_input("input.txt");
 
-    // Testing
-    assert_eq!(43210,
-               run_pipeline(&vec![4, 3, 2, 1, 0],
-                            &vec![3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0]));
-    assert_eq!(54321,
-               run_pipeline(&vec![0, 1, 2, 3, 4],
-                            &vec![3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23, 99, 0, 0]));
-    assert_eq!(65210,
-               run_pipeline(&vec![1, 0, 4, 3, 2],
-                            &vec![3, 31, 3, 32, 1002, 32, 10, 32, 1001, 31, -2, 31, 1007, 31, 0, 33, 1002, 33, 7, 33, 1, 33, 31, 31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0]));
-
     // Part 1
-    let mut max_thrust = 0;
-    let mut phase = Vec::new();
-    for perm in permutations(&vec![0,1,2,3,4]) {
-        let thrust = run_pipeline(&perm, &input);
-        if thrust > max_thrust {
-            max_thrust = thrust;
-            phase = perm;
-        }
-    }
+    assert_eq!(43210,
+               run_pipeline1(&vec![4, 3, 2, 1, 0],
+                             &vec![3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0]));
+    assert_eq!(54321,
+               run_pipeline1(&vec![0, 1, 2, 3, 4],
+                             &vec![3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23, 99, 0, 0]));
+    assert_eq!(65210,
+               run_pipeline1(&vec![1, 0, 4, 3, 2],
+                             &vec![3, 31, 3, 32, 1002, 32, 10, 32, 1001, 31, -2, 31, 1007, 31, 0, 33, 1002, 33, 7, 33, 1, 33, 31, 31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0]));
 
+
+    let (max_thrust, phase) = find_max(run_pipeline1, &vec![0,1,2,3,4], &input);
     println!("Part 1: Max thrust is {} ({:?})", max_thrust, phase);
+
+    // Part 2
+    assert_eq!(139629729,
+               find_max(run_pipeline2,
+                        &vec![9,8,7,6,5],
+                        &vec![3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5]).0);
+
+    assert_eq!(18216,
+               find_max(run_pipeline2,
+                        &vec![9,8,7,6,5],
+                        &vec![3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,-5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10]).0);
+
+    let (max_thrust, phase) = find_max(run_pipeline2, &vec![5,6,7,8,9], &input);
+    println!("Part 2: Max thrust is {} ({:?})", max_thrust, phase);
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Program {
@@ -54,7 +60,23 @@ fn read_input<T: AsRef<Path>>(path: T) -> Program {
     contents.trim().split(",").map(|line| line.parse::<Word>().expect("Failed to parse input")).collect()
 }
 
-fn run_pipeline(phases: &Vec<Word>, program: &Program) -> Word {
+fn find_max<F>(run_pipeline: F, phases: &Vec<Word>, program: &Program) -> (Word, Vec<Word>)
+    where F: Fn(&Vec<Word>, &Program) -> Word {
+    let mut max_thrust = 0;
+    let mut phase = Vec::new();
+    for perm in permutations(phases) {
+        let thrust = run_pipeline(&perm, program);
+        if thrust > max_thrust {
+            max_thrust = thrust;
+            phase = perm;
+        }
+    }
+
+    (max_thrust, phase)
+}
+
+fn run_pipeline1(phases: &Vec<Word>, program: &Program) -> Word {
+    // Setup and run amplifiers in sequence
     let mut input = 0;
     for i in 0..phases.len() {
         let stdin = vec![phases[i], input];
@@ -62,6 +84,35 @@ fn run_pipeline(phases: &Vec<Word>, program: &Program) -> Word {
     }
 
     input
+}
+
+fn run_pipeline2(phases: &Vec<Word>, program: &Program) -> Word {
+    // Set up amplifiers
+    let mut pipes = Vec::new();
+    for i in 0..phases.len() {
+        let (stdin_source, stdin_sink) = channel();
+        let (stdout_source, stdout_sink) = channel();
+        let program = program.clone();
+        thread::spawn(move || {
+            let mut cpu = IntcodeEmulator::new(stdin_sink, stdout_source);
+            cpu.load_program(&program);
+            cpu.run();
+        });
+        stdin_source.send(phases[i]).expect("Failed to write phase to STDIN");
+        pipes.push((stdin_source, stdout_sink));
+    }
+
+    // Write initial input
+    pipes[0].0.send(0).expect("Failed to write initial value to STDIN");
+
+    // Drive the pipeline until it halts
+    for i in (0..phases.len()).cycle() {
+        let v = pipes[i].1.recv().expect("Pipe failed to read from STDOUT");
+        if let Err(_) = pipes[(i + 1) % phases.len()].0.send(v) {
+            return v;
+        }
+    }
+    unreachable!()
 }
 
 fn permutations(input: &Vec<Word>) -> Vec<Vec<Word>> {
