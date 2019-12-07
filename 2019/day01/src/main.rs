@@ -39,16 +39,12 @@ fn fuel1(mass: u32) -> u32 {
 /// Then, treat the fuel amount you just calculated as the input mass
 /// and repeat the process, continuing until a fuel requirement is zero or negative.
 fn fuel(mass: u32) -> u32 {
-    let mut result = 0;
-    let mut partial_mass = mass;
-
-    while partial_mass > 0 {
-        let partial_fuel = fuel1(partial_mass);
-        result += partial_fuel;
-        partial_mass = partial_fuel;
+    let mut fuel_mass = fuel1(mass);
+    if fuel_mass > 0 {
+        fuel_mass += fuel(fuel_mass);
     }
 
-    result
+    fuel_mass
 }
 
 
