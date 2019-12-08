@@ -64,12 +64,12 @@ fn run(program: &Program) {
                 println!("{}", out);
             },
             Exception::IllegalInstruction(opcode) => {
-                eprintln!("ERROR: Illegal instruction {} at {:08x}", opcode, cpu.ip());
+                eprintln!("ERROR: Illegal instruction {} (ip: 0x{:08x})", opcode, cpu.ip());
                 cpu.dump_memory();
                 process::exit(4);
             },
             Exception::SegmentationFault(addr) => {
-                eprintln!("Segmentation fault at {:08x}", addr);
+                eprintln!("Segmentation fault at 0x{:08x} (ip: 0x{:08x})", addr, cpu.ip());
                 cpu.dump_memory();
                 process::exit(11);
             },
