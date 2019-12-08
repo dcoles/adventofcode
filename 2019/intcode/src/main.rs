@@ -4,23 +4,56 @@ use std::{fs, env, process, io};
 use std::path::Path;
 use crate::emulator::{Program, IntcodeEmulator, Exception, Word};
 use std::io::BufRead;
+use std::collections::VecDeque;
 
 fn main() {
-    let args: Vec<_> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("ERROR: No source file provided");
-        process::exit(2);
-    }
+    let args = parse_args();
 
-    let program = match read_input(&args[1]) {
-        Ok(prog) => prog,
+    let program = match read_input(args.program) {
         Err(err) => {
             eprintln!("ERROR: {}", err);
             process::exit(1);
         },
+        Ok(program) => program,
     };
 
-    run(&program);
+    run(&program, args.debug);
+}
+
+fn parse_args() -> Args {
+    let mut debug = false;
+    let mut posargs = VecDeque::new();
+
+    let args: Vec<_> = env::args().collect();
+    for arg in &args[1..] {
+        match arg.as_str() {
+            "-d" | "--debug" => debug = true,
+            arg if arg.starts_with("-") => {
+                eprintln!("ERROR: Unknown argument '{}'", arg);
+                print_usage();
+                process::exit(2);
+            },
+            arg => posargs.push_back(arg),
+        }
+    }
+
+    let program = if let Some(arg) = posargs.pop_front() {
+        arg.to_owned()
+    } else {
+        print_usage();
+        process::exit(2);
+    };
+
+    if !posargs.is_empty() {
+        print_usage();
+        process::exit(2)
+    }
+
+    Args { debug, program }
+}
+
+fn print_usage() {
+    eprintln!("USAGE: intcode [-d | --debug] PROGRAM");
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Result<Program, String> {
@@ -38,9 +71,10 @@ fn read_input<T: AsRef<Path>>(path: T) -> Result<Program, String> {
     Ok(Program::new(&instructions?))
 }
 
-fn run(program: &Program) {
+fn run(program: &Program, debug: bool) {
     let mut cpu = IntcodeEmulator::new();
     cpu.load_program(&program);
+    cpu.set_debug(debug);
 
     loop {
         match cpu.run() {
@@ -75,4 +109,9 @@ fn run(program: &Program) {
             },
         }
     }
+}
+
+struct Args {
+    debug: bool,
+    program: String,
 }

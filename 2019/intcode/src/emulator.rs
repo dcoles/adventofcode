@@ -7,8 +7,6 @@ pub type Word = i32;
 const MODE_POSITION: Word = 0;
 const MODE_IMMEDIATE: Word = 1;
 
-const DEBUG: bool = false;
-
 /// An Intcode program
 pub struct Program(Vec<Word>);
 
@@ -24,6 +22,7 @@ pub struct IntcodeEmulator {
     current_instruction: Instruction,
     mem: Vec<Word>,
     input: VecDeque<Word>,
+    debug: bool,
 }
 
 impl IntcodeEmulator {
@@ -32,7 +31,8 @@ impl IntcodeEmulator {
         let current_instruction = Instruction::new(Opcode::Halt.into()).ok().unwrap();
         let mem = vec![current_instruction.into()];
         let input = VecDeque::new();
-        IntcodeEmulator { ip: 0, current_instruction, mem, input }
+
+        IntcodeEmulator { ip: 0, current_instruction, mem, input, debug: false }
     }
 
     /// The current instruction pointer address
@@ -49,6 +49,11 @@ impl IntcodeEmulator {
     pub fn load_program(&mut self, program: &Program) {
         self.ip = 0;
         self.mem = program.0.to_owned();
+    }
+
+    /// Set debugging flag
+    pub fn set_debug(&mut self, debug: bool) {
+        self.debug = debug;
     }
 
     /// Queue input
@@ -72,10 +77,10 @@ impl IntcodeEmulator {
         }
 
         self.current_instruction = Instruction::new(self.mem[self.ip]).map_err(|_| Exception::IllegalInstruction(self.mem[self.ip]))?;
-
-        if DEBUG {
+        if self.debug {
             eprintln!("{:08x} {}", self.ip, self.current_instruction.op);
         }
+
         match self.current_instruction.op {
             Opcode::Add => {
                 *self.store(3)? = self.load(1)? + self.load(2)?;
