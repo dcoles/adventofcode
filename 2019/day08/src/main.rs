@@ -25,64 +25,97 @@ fn read_input<T: AsRef<Path>>(path: T) -> Vec<Pixel> {
     contents.trim().chars().map(|c| c.to_digit(10).expect("Not a digit") as Pixel).collect()
 }
 
-fn split_layers(data: &[Pixel], width: usize, height: usize) -> Vec<Vec<Vec<Pixel>>> {
+fn split_layers(data: &[Pixel], width: usize, height: usize) -> Vec<Pixmap> {
     let mut layers = Vec::new();
+    let npixels = width * height;
     let mut iter = data.iter();
 
     'outer: loop {
-        let mut layer = Vec::new();
-        for _ in 0..height {
-            let mut row = Vec::new();
-            for _ in 0..width {
-                if let Some(&value) = iter.next() {
-                    row.push(value);
-                } else {
-                    break 'outer;
+        let mut pixdata = Vec::new();
+        for i in 0..npixels {
+            if let Some(&value) = iter.next() {
+                pixdata.push(value);
+            } else {
+                if i != 0 {
+                    panic!("Truncated data");
                 }
+                // No more layers
+                break 'outer;
             }
-            layer.push(row);
         }
-        layers.push(layer);
+        layers.push(Pixmap::new(&pixdata, width, height).expect("Invalid dimensions"));
     }
 
     layers
 }
 
-fn count_digits(layers: &[Vec<Vec<Pixel>>]) -> Vec<HashMap<Pixel, u32>> {
-    let mut counts = Vec::new();
-
-    for layer in layers.iter() {
-        let mut count: HashMap<Pixel, u32> = HashMap::new();
-        for row in layer {
-            for &val in row {
-                *count.entry(val).or_default() += 1;
-            }
+fn count_digits(layers: &[Pixmap]) -> Vec<HashMap<Pixel, u32>> {
+    layers.iter().map(|layer| {
+        let mut count = HashMap::new();
+        for &pixel in layer.data() {
+            *count.entry(pixel).or_default() += 1;
         }
-        counts.push(count);
-    }
 
-    counts
+        count
+    }).collect()
 }
 
-fn draw(layers: &[Vec<Vec<Pixel>>]) {
+fn draw(layers: &[Pixmap]) {
     let nlayers = layers.len();
-    let height = layers[0].len();
-    let width = layers[0][0].len();
+    let height = layers[0].height();
+    let width = layers[0].width();
 
     for y in 0..height {
         let mut line = String::new();
         for x in 0..width {
             let mut pixel = 'X';
             for l in (0..nlayers).rev() {
-                match layers[l][y][x] {
+                match layers[l].pixel(x, y) {
                     0 => pixel = ' ',  // Black
                     1 => pixel = '█',  // White
                     2 => (),  // Transparent
-                    _ => panic!("Unknown pixel {}", pixel),
+                    pixel => panic!("Unknown pixel {}", pixel),
                 }
             }
             line.push(pixel);
         }
         println!("{}", line);
+    }
+}
+
+struct Pixmap {
+    data: Vec<Pixel>,
+    width: usize,
+    height: usize,
+}
+
+impl Pixmap {
+    fn new(data: &[Pixel], width: usize, height: usize) -> Option<Pixmap> {
+        if data.len() != width * height {
+            return None;
+        }
+        Some(Pixmap { data: data.to_owned(), width, height })
+    }
+
+    fn data(&self) -> &[Pixel] {
+        &self.data
+    }
+
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    fn height(&self) -> usize {
+        self.height
+    }
+
+    fn pixel(&self, x: usize, y: usize) -> Pixel {
+        if x > self.width {
+            panic!("x is out of bounds: {} > {} (width)", x, self.width)
+        }
+        if y > self.height {
+            panic!("y is out of bounds: {} > {} (height)", x, self.height)
+        }
+        self.data[self.width * y + x]
     }
 }
