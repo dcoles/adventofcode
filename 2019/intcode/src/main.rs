@@ -20,10 +20,7 @@ fn main() {
         },
     };
 
-    if let Err(err) = run(&program) {
-        eprintln!("ERROR: {}", err);
-        process::exit(1);
-    }
+    run(&program);
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Result<Program, String> {
@@ -41,7 +38,7 @@ fn read_input<T: AsRef<Path>>(path: T) -> Result<Program, String> {
     Ok(Program::new(&instructions?))
 }
 
-fn run(program: &Program) -> Result<(), String> {
+fn run(program: &Program) {
     let mut cpu = IntcodeEmulator::new();
     cpu.load_program(&program);
 
@@ -50,17 +47,32 @@ fn run(program: &Program) -> Result<(), String> {
             Exception::Halt => break,
             Exception::Input => {
                 let mut inbuf = String::new();
-                io::stdin().read_line(&mut inbuf).map_err(|err| format!("Failed to read from STDIN: {}", err))?;
-                let input = inbuf.trim().parse::<Word>().map_err(|err| format!("Could parse STDIN: {}", err))?;
+                if let Err(err) = io::stdin().read_line(&mut inbuf) {
+                    eprintln!("ERROR: Failed to read from STDIN: {}", err);
+                    process::exit(1);
+                };
+                let input = match inbuf.trim().parse::<Word>() {
+                    Err(err) => {
+                        eprintln!("ERROR: Could parse STDIN: {}", err);
+                        process::exit(1);
+                    },
+                    Ok(input) => input,
+                };
                 cpu.add_input(input);
             },
             Exception::Output(out) => {
                 println!("{}", out);
             },
-            Exception::IllegalInstruction(word) => return Err(format!("Illegal instruction {}", word)),
-            Exception::SegmentationFault(word) => return Err(format!("Segmentation fault at {:08x}", word)),
+            Exception::IllegalInstruction(opcode) => {
+                eprintln!("ERROR: Illegal instruction {} at {:08x}", opcode, cpu.ip());
+                cpu.dump_memory();
+                process::exit(4);
+            },
+            Exception::SegmentationFault(addr) => {
+                eprintln!("Segmentation fault at {:08x}", addr);
+                cpu.dump_memory();
+                process::exit(11);
+            },
         }
     }
-
-    Ok(())
 }

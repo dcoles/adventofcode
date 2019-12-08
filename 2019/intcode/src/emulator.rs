@@ -40,6 +40,16 @@ impl IntcodeEmulator {
         IntcodeEmulator { ip: 0, mem: vec![OP_HALT], input: VecDeque::new() }
     }
 
+    /// The current instruction pointer address
+    pub fn ip(&self) -> usize {
+        self.ip
+    }
+
+    /// The current memory contents
+    pub fn mem(&self) -> &[Word] {
+        &self.mem
+    }
+
     /// Load a program into memory
     pub fn load_program(&mut self, program: &Program) {
         self.ip = 0;
@@ -123,6 +133,20 @@ impl IntcodeEmulator {
         };
 
         Ok(())
+    }
+
+    /// Dump memory to console
+    pub fn dump_memory(&self) {
+        eprintln!("Dumping memory...");
+        for addr in (0..self.mem.len()).step_by(8) {
+            let flag = if addr == (self.ip & 0xfffffff8) { '>' } else { ' ' };
+            let line: Vec<_> = (addr..self.mem.len().min(addr+8))
+                .map(|addr| {
+                    let flag = if addr == self.ip { '*' } else { ' ' };
+                    format!("{:-11}{}", self.mem[addr], flag)
+                }).collect();
+            eprintln!("{} {:08x} {}", flag, addr, line.join(" "));
+        }
     }
 
     /// The current instruction's op-code
