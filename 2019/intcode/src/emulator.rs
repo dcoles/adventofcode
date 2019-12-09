@@ -4,8 +4,8 @@ use std::fmt;
 
 pub type Word = i32;
 
-const MODE_POSITION: Word = 0;
-const MODE_IMMEDIATE: Word = 1;
+pub const MODE_POSITION: Word = 0;
+pub const MODE_IMMEDIATE: Word = 1;
 
 /// An Intcode program
 pub struct Program(Vec<Word>);
@@ -38,6 +38,15 @@ impl IntcodeEmulator {
     /// The current instruction pointer address
     pub fn ip(&self) -> usize {
         self.ip
+    }
+
+    pub fn set_ip(&mut self, ip: usize) {
+        self.ip = ip;
+    }
+
+    /// The current decoded instruction
+    pub fn current_instruction(&self) -> Result<Instruction, Exception> {
+        Instruction::new(*self.mem.get(self.ip).ok_or_else(|| Exception::SegmentationFault(self.ip))?)
     }
 
     /// The current memory contents
@@ -76,9 +85,13 @@ impl IntcodeEmulator {
             return Err(Exception::SegmentationFault(self.ip));
         }
 
-        self.current_instruction = Instruction::new(self.mem[self.ip]).map_err(|_| Exception::IllegalInstruction(self.mem[self.ip]))?;
+        self.current_instruction = self.current_instruction().map_err(|_| Exception::IllegalInstruction(self.mem[self.ip]))?;
         if self.debug {
             eprintln!("{:08x} {}", self.ip, self.current_instruction.op);
+        }
+
+        if self.ip + self.current_instruction.op.nparams() >= self.mem.len() {
+            return Err(Exception::SegmentationFault(self.ip));
         }
 
         match self.current_instruction.op {
@@ -96,6 +109,9 @@ impl IntcodeEmulator {
                     self.ip += 2;
                 } else {
                     // Upcall to request input
+                    if self.debug {
+                        eprintln!("Waiting for input...")
+                    }
                     return Err(Exception::Input);
                 }
             },
@@ -186,7 +202,7 @@ impl IntcodeEmulator {
 
 /// Instruction
 #[derive(Copy, Clone)]
-struct Instruction {
+pub struct Instruction {
     op: Opcode,
     modes: Word,
 }
@@ -199,13 +215,18 @@ impl Instruction {
         Ok(Instruction { op, modes })
     }
 
+    /// Opcode of instruction
+    pub fn op(self) -> Opcode {
+        self.op
+    }
+
     /// Mode for parameter `n`
-    fn mode_for(self, param: usize) -> Word {
+    pub fn mode_for(self, param: usize) -> Word {
         assert!(param >= 1);
         let exponent = param.checked_sub(1).unwrap() as u32;
 
         let base: Word = 10;  // Ensure correct type
-        self.modes / base.pow(exponent) % 10
+        (self.modes / base.pow(exponent)) % 10
     }
 }
 
@@ -227,6 +248,24 @@ pub enum Opcode {
     LessThan,  // [p3] = if [p1] < [p2] { 1 } else { 0 }
     Equal,  // [p3] = if [p1] == [p2] { 1 } else { 0 }
     Halt,  // ...but don't catch fire
+}
+
+impl Opcode {
+    /// Number of parameters this opcode takes
+    pub fn nparams(self) -> usize {
+        use Opcode::*;
+        match self {
+            Add => 3,
+            Mul => 3,
+            Input => 1,
+            Output => 1,
+            JumpIfTrue => 2,
+            JumpIfFalse => 2,
+            LessThan => 3,
+            Equal => 3,
+            Halt => 0,
+        }
+    }
 }
 
 impl fmt::Display for Opcode {
@@ -292,4 +331,17 @@ pub enum Exception {
     SegmentationFault(usize),
     Input,
     Output(Word),
+}
+
+impl fmt::Display for Exception {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        use Exception::*;
+        f.write_str(&match &self {
+            Halt => String::from("Halt"),
+            IllegalInstruction(word) => format!("Illegal instruction {}", word),
+            SegmentationFault(addr) => format!("Segmentation fault at {:08x}", addr),
+            Input => format!("Input required"),
+            Output(word) => format!("Output {}", word),
+        })
+    }
 }
