@@ -2,10 +2,13 @@ use std::collections::VecDeque;
 use std::convert::{TryInto, TryFrom};
 use std::fmt;
 
-pub type Word = i32;
+pub type Word = i64;
+
+pub const MEMSIZE: usize = 2 << 11;  // 4 KiB
 
 pub const MODE_POSITION: Word = 0;
 pub const MODE_IMMEDIATE: Word = 1;
+pub const MODE_RELATIVE: Word = 2;
 
 /// An Intcode program
 pub struct Program(Vec<Word>);
@@ -19,6 +22,7 @@ impl Program {
 /// Emulates an Intcode computer
 pub struct IntcodeEmulator {
     ip: usize,
+    relbase: Word,
     current_instruction: Instruction,
     mem: Vec<Word>,
     input: VecDeque<Word>,
@@ -32,7 +36,7 @@ impl IntcodeEmulator {
         let mem = vec![current_instruction.into()];
         let input = VecDeque::new();
 
-        IntcodeEmulator { ip: 0, current_instruction, mem, input, debug: false }
+        IntcodeEmulator { ip: 0, relbase: 0, current_instruction, mem, input, debug: false }
     }
 
     /// The current instruction pointer address
@@ -40,8 +44,19 @@ impl IntcodeEmulator {
         self.ip
     }
 
+    /// Set the current instruction pointer
     pub fn set_ip(&mut self, ip: usize) {
         self.ip = ip;
+    }
+
+    /// The current relative base
+    pub fn rb(&self) -> Word {
+        self.relbase
+    }
+
+    /// Set the current relative base
+    pub fn set_rb(&mut self, rb: Word) {
+        self.relbase = rb;
     }
 
     /// The current decoded instruction
@@ -57,7 +72,8 @@ impl IntcodeEmulator {
     /// Load a program into memory
     pub fn load_program(&mut self, program: &Program) {
         self.ip = 0;
-        self.mem = program.0.to_owned();
+        self.mem = vec![0; MEMSIZE];
+        self.mem.splice(..program.0.len(), program.0.iter().copied());
     }
 
     /// Set debugging flag
@@ -97,16 +113,13 @@ impl IntcodeEmulator {
         match self.current_instruction.op {
             Opcode::Add => {
                 *self.store(3)? = self.load(1)? + self.load(2)?;
-                self.ip += 4;
             },
             Opcode::Mul => {
                 *self.store(3)? = self.load(1)? * self.load(2)?;
-                self.ip += 4;
             },
             Opcode::Input => {
                 if let Some(input) = self.input.pop_front() {
                     *self.store(1)? = input;
-                    self.ip += 2;
                 } else {
                     // Upcall to request input
                     if self.debug {
@@ -117,7 +130,8 @@ impl IntcodeEmulator {
             },
             Opcode::Output => {
                 let output = self.load(1)?;
-                self.ip += 2;
+                self.ip += self.current_instruction.op.nparams() + 1;
+
                 // Upcall for output
                 return Err(Exception::Output(output));
             },
@@ -125,28 +139,28 @@ impl IntcodeEmulator {
                 if self.load(1)? != 0 {
                     self.ip = self.load(2)?.try_into()  // must not be negative
                         .or(Err(Exception::IllegalInstruction(self.mem[self.ip])))?;
-                } else {
-                    self.ip += 3;
+                    return Ok(());
                 }
             },
             Opcode::JumpIfFalse => {
                 if self.load(1)? == 0 {
                     self.ip = self.load(2)?.try_into()  // must not be negative
                         .or(Err(Exception::IllegalInstruction(self.mem[self.ip])))?;
-                } else {
-                    self.ip += 3;
+                    return Ok(());
                 }
             },
             Opcode::LessThan => {
                 *self.store(3)? = if self.load(1)? < self.load(2)? { 1 } else { 0 };
-                self.ip += 4;
             },
             Opcode::Equal => {
                 *self.store(3)? = if self.load(1)? == self.load(2)? { 1 } else { 0 };
-                self.ip += 4;
             },
+            Opcode::SetRBOffset => {
+                self.relbase += self.load(1)?;
+            }
             Opcode::Halt => return Err(Exception::Halt),
         };
+        self.ip += self.current_instruction.op.nparams() + 1;
 
         Ok(())
     }
@@ -155,11 +169,17 @@ impl IntcodeEmulator {
     pub fn dump_memory(&self) {
         eprintln!("Dumping memory...");
         for addr in (0..self.mem.len()).step_by(8) {
-            let flag = if addr == (self.ip & 0xfffffff8) { '>' } else { ' ' };
-            let line: Vec<_> = (addr..self.mem.len().min(addr+8))
-                .map(|addr| {
-                    let flag = if addr == self.ip { '←' } else { ' ' };
-                    format!("{:-11}{}", self.mem[addr], flag)
+            let flag = if addr == (self.ip & 0xffff_fff8) { '>' } else { ' ' };
+            let mem = &self.mem[addr..self.mem.len().min(addr+8)];
+            if mem.iter().all(|&v| v == 0) && flag == ' ' {
+                // Don't print empty blocks of memory
+                continue;
+            }
+
+            let line: Vec<_> = mem.iter().enumerate()
+                .map(|(offset, &val)| {
+                    let flag = if addr + offset == self.ip { '←' } else { ' ' };
+                    format!("{:-11}{}", val, flag)
                 }).collect();
             eprintln!("{} {:08x} {}", flag, addr, line.join(" "));
         }
@@ -178,6 +198,10 @@ impl IntcodeEmulator {
                 self.mem.get(addr).copied().ok_or(Exception::SegmentationFault(addr))
             },
             MODE_IMMEDIATE => Ok(value),
+            MODE_RELATIVE => {
+                let addr = (self.relbase + value).try_into().or_else(|_| Err(Exception::IllegalInstruction(self.mem[self.ip])))?;
+                self.mem.get(addr).copied().ok_or(Exception::SegmentationFault(addr))
+            },
             _ => Err(Exception::IllegalInstruction(self.mem[self.ip]))
         }
     }
@@ -192,6 +216,10 @@ impl IntcodeEmulator {
             MODE_POSITION => {
                 // Must not be negative
                 let addr = value.try_into().or_else(|_| Err(Exception::IllegalInstruction(self.mem[self.ip])))?;
+                self.mem.get_mut(addr).ok_or(Exception::SegmentationFault(addr))
+            },
+            MODE_RELATIVE => {
+                let addr = (self.relbase + value).try_into().or_else(|_| Err(Exception::IllegalInstruction(self.mem[self.ip])))?;
                 self.mem.get_mut(addr).ok_or(Exception::SegmentationFault(addr))
             },
             // NOTE: Immediate mode is invalid for store
@@ -247,6 +275,7 @@ pub enum Opcode {
     JumpIfFalse,  // if [p1] == 0 { ip = [p2] }
     LessThan,  // [p3] = if [p1] < [p2] { 1 } else { 0 }
     Equal,  // [p3] = if [p1] == [p2] { 1 } else { 0 }
+    SetRBOffset,  // relbase += [p1]
     Halt,  // ...but don't catch fire
 }
 
@@ -263,6 +292,7 @@ impl Opcode {
             JumpIfFalse => 2,
             LessThan => 3,
             Equal => 3,
+            SetRBOffset => 1,
             Halt => 0,
         }
     }
@@ -280,6 +310,7 @@ impl fmt::Display for Opcode {
             JumpIfFalse => "JMPFALSE",
             LessThan => "CMPLT",
             Equal => "CMPEQ",
+            SetRBOffset => "RBOFFSET",
             Halt => "HALT",
         };
 
@@ -301,6 +332,7 @@ impl TryFrom<Word> for Opcode {
             6 => Ok(JumpIfFalse),
             7 => Ok(LessThan),
             8 => Ok(Equal),
+            9 => Ok(SetRBOffset),
             99 => Ok(Halt),
             _ => Err(()),
         }
@@ -319,6 +351,7 @@ impl From<Opcode> for Word {
             JumpIfFalse => 6,
             LessThan => 7,
             Equal => 8,
+            SetRBOffset => 9,
             Halt => 99,
         }
     }
@@ -340,7 +373,7 @@ impl fmt::Display for Exception {
             Halt => String::from("Halt"),
             IllegalInstruction(word) => format!("Illegal instruction {}", word),
             SegmentationFault(addr) => format!("Segmentation fault at {:08x}", addr),
-            Input => format!("Input required"),
+            Input => String::from("Input required"),
             Output(word) => format!("Output {}", word),
         })
     }

@@ -2,7 +2,7 @@ mod emulator;
 
 use std::{fs, env, process, io};
 use std::path::Path;
-use crate::emulator::{Program, IntcodeEmulator, Exception, Word, MODE_POSITION, MODE_IMMEDIATE};
+use crate::emulator::{Program, IntcodeEmulator, Exception, Word, MODE_POSITION, MODE_IMMEDIATE, MODE_RELATIVE};
 use std::io::BufRead;
 use std::collections::VecDeque;
 
@@ -30,7 +30,7 @@ fn parse_args() -> Args {
         match arg.as_str() {
             "-d" | "--debug" => debug = true,
             "-B" | "--break" => break_at_start = true,
-            arg if arg.starts_with("-") => {
+            arg if arg.starts_with('-') => {
                 eprintln!("ERROR: Unknown argument '{}'", arg);
                 print_usage();
                 process::exit(2);
@@ -139,6 +139,10 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
         Ok(file) => io::BufReader::new(file),
     };
 
+    // Disassemble first instruction
+    print_disassembled(&cpu);
+
+    let mut last_line = String::new();
     loop {
         eprint!("debug> ");
         let mut line = String::new();
@@ -151,6 +155,13 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
             Ok(_) => (),
         }
 
+        // Keep track of the last non-empty line to allow easy repeat
+        if line.trim().is_empty() {
+            line = last_line.clone();
+        } else {
+            last_line = line.clone();
+        }
+
         let args: Vec<_> = line.trim().split_whitespace().collect();
         if args.is_empty() {
             continue;
@@ -159,9 +170,14 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
         if let Err(err) = match args[0] {
             "p" | "print" => print(&cpu, &args),
             "c" | "continue" => break,
-            "j" | "jump" => read_param(&args, 1).map(|addr| cpu.set_ip(addr)),
+            "j" | "jump" => {
+                read_param(&args, 1)
+                    .map(|addr| cpu.set_ip(addr))
+                    .map(|_| print_disassembled(&cpu))
+            },
+            "r" | "relbase" => read_param(&args, 1).map(|word| cpu.set_rb(word)),
             "q" | "quit" => process::exit(0),
-            "d" | "disassemble" => disassemble(&cpu).map(|s| eprintln!("{:08x} {}", cpu.ip(), s)),
+            "d" | "disassemble" => { print_disassembled(&cpu); Ok(()) },
             "s" | "step" => {
                 match cpu.step() {
                     Err(Exception::Input) => read_input().map(|input| cpu.add_input(input)),
@@ -171,10 +187,10 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
                     },
                     Err(except) => Err(except.to_string()),
                     Ok(()) => Ok(()),
-                }.map(|_| eprintln!("{:08x} {}", cpu.ip(), disassemble(&cpu).unwrap_or_else(|_| String::from("???"))))
+                }.map(|_| print_disassembled(&cpu))
             },
             "i" | "input" => read_param(&args,1).map(|input| cpu.add_input(input)),
-            "dump" => { cpu.dump_memory(); Ok(()) },
+            "D" | "dump" => { cpu.dump_memory(); Ok(()) },
             "h" | "help" => {
                 eprintln!("p|print [addr]  Print contents of address");
                 eprintln!("c|continue      Continue execution");
@@ -193,6 +209,10 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
     }
 }
 
+fn print_disassembled(cpu: &IntcodeEmulator) {
+    eprintln!("{:08x} {}", cpu.ip(), disassemble(&cpu).unwrap_or_else(|_| String::from("???")));
+}
+
 fn read_param<T: std::str::FromStr>(args: &[&str], param: usize) -> Result<T, String> {
     let arg = args.get(param).ok_or_else(|| String::from("Missing parameter"))?;
 
@@ -206,11 +226,12 @@ fn print(cpu: &IntcodeEmulator, args: &[&str]) -> Result<(), String> {
 
     let arg1 = args.get(1).unwrap_or(&"");
 
-    if arg1.starts_with("$") {
+    if arg1.starts_with('$') {
         // p $ip
         match &arg1[1..] {
-            "ip" => eprintln!("0x{:08}", cpu.ip()),
-            name => Err(format!("Unknown register %{}", name))?,
+            "ip" => eprintln!("0x{:08x}", cpu.ip()),
+            "rb" => eprintln!("{}", cpu.rb()),
+            name => return Err(format!("Unknown register %{}", name)),
         }
     } else {
         // p [addr]
@@ -224,7 +245,7 @@ fn print(cpu: &IntcodeEmulator, args: &[&str]) -> Result<(), String> {
             },
         }?;
 
-        let value = cpu.mem().get(addr).ok_or_else(|| format!("Address out of range"))?;
+        let value = cpu.mem().get(addr).ok_or_else(|| String::from("Address out of range"))?;
         eprintln!("{}", value);
     }
 
@@ -234,18 +255,18 @@ fn print(cpu: &IntcodeEmulator, args: &[&str]) -> Result<(), String> {
 fn disassemble(cpu: &IntcodeEmulator) -> Result<String, String> {
     let addr = cpu.ip();
     let instruction = cpu.current_instruction().map_err(|err| format!("Failed to decode instruction: {}", err))?;
-    let nparams = instruction.op().nparams();
     let params: Vec<_> = cpu.mem()[addr+1..].iter()
         .chain([0].iter().cycle())
-        .take(nparams)
+        .take(instruction.op().nparams())
         .enumerate()
-        .map(|(n, &p)| (instruction.mode_for(nparams - n), p))
+        .map(|(n, &p)| (instruction.mode_for(n + 1), p))
         .collect();
 
     let params_str: Vec<_> = params.iter().map(|&(m, p)| {
         match m {
             MODE_POSITION => format!("0x{:08x}", p),
             MODE_IMMEDIATE => format!("${}", p),
+            MODE_RELATIVE => format!("%rb{:+}", p),
             _ => format!("?{}", p),
         }
     }).collect();
