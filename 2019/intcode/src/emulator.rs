@@ -174,7 +174,7 @@ impl IntcodeEmulator {
     pub fn dump_memory(&self) {
         eprintln!("Dumping memory...");
         for addr in (0..self.mem.len()).step_by(8) {
-            let flag = if addr == (self.ip & 0xffff_fff8) { '>' } else { ' ' };
+            let flag = if addr == (self.ip & (!0 - 0b111)) { '>' } else { ' ' };
             let mem = &self.mem[addr..self.mem.len().min(addr+8)];
             if mem.iter().all(|&v| v == 0) && flag == ' ' {
                 // Don't print empty blocks of memory
