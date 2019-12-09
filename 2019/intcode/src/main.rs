@@ -2,7 +2,7 @@ mod emulator;
 
 use std::{fs, env, process, io};
 use std::path::Path;
-use crate::emulator::{Program, IntcodeEmulator, Exception, Word, MODE_POSITION, MODE_IMMEDIATE, MODE_RELATIVE};
+use crate::emulator::{Program, IntcodeEmulator, Exception, Word};
 use std::io::BufRead;
 use std::collections::VecDeque;
 
@@ -139,8 +139,12 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
         Ok(file) => io::BufReader::new(file),
     };
 
+    // Disable debug-tracing while running the debugger
+    let last_debug = cpu.get_debug();
+    cpu.set_debug(false);
+
     // Disassemble first instruction
-    print_disassembled(&cpu);
+    cpu.print_disassembled();
 
     let mut last_line = String::new();
     loop {
@@ -173,11 +177,11 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
             "j" | "jump" => {
                 read_param(&args, 1)
                     .map(|addr| cpu.set_ip(addr))
-                    .map(|_| print_disassembled(&cpu))
+                    .map(|_| cpu.print_disassembled())
             },
             "r" | "relbase" => read_param(&args, 1).map(|word| cpu.set_rb(word)),
             "q" | "quit" => process::exit(0),
-            "d" | "disassemble" => { print_disassembled(&cpu); Ok(()) },
+            "d" | "disassemble" => { cpu.print_disassembled(); Ok(()) },
             "s" | "step" => {
                 match cpu.step() {
                     Err(Exception::Input) => read_input().map(|input| cpu.add_input(input)),
@@ -187,7 +191,7 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
                     },
                     Err(except) => Err(except.to_string()),
                     Ok(()) => Ok(()),
-                }.map(|_| print_disassembled(&cpu))
+                }.map(|_| cpu.print_disassembled())
             },
             "i" | "input" => read_param(&args,1).map(|input| cpu.add_input(input)),
             "D" | "dump" => { cpu.dump_memory(); Ok(()) },
@@ -207,10 +211,9 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
             eprintln!("ERROR: {}", err);
         };
     }
-}
 
-fn print_disassembled(cpu: &IntcodeEmulator) {
-    eprintln!("{:08x} {}", cpu.ip(), disassemble(&cpu).unwrap_or_else(|_| String::from("???")));
+    // Re-enable debug-tracing if it was previously enabled
+    cpu.set_debug(last_debug);
 }
 
 fn read_param<T: std::str::FromStr>(args: &[&str], param: usize) -> Result<T, String> {
@@ -250,28 +253,6 @@ fn print(cpu: &IntcodeEmulator, args: &[&str]) -> Result<(), String> {
     }
 
     Ok(())
-}
-
-fn disassemble(cpu: &IntcodeEmulator) -> Result<String, String> {
-    let addr = cpu.ip();
-    let instruction = cpu.current_instruction().map_err(|err| format!("Failed to decode instruction: {}", err))?;
-    let params: Vec<_> = cpu.mem()[addr+1..].iter()
-        .chain([0].iter().cycle())
-        .take(instruction.op().nparams())
-        .enumerate()
-        .map(|(n, &p)| (instruction.mode_for(n + 1), p))
-        .collect();
-
-    let params_str: Vec<_> = params.iter().map(|&(m, p)| {
-        match m {
-            MODE_POSITION => format!("0x{:08x}", p),
-            MODE_IMMEDIATE => format!("${}", p),
-            MODE_RELATIVE => format!("%rb{:+}", p),
-            _ => format!("?{}", p),
-        }
-    }).collect();
-
-    Ok(format!("{} {}", instruction.op(), params_str.join(" ")))
 }
 
 struct Args {

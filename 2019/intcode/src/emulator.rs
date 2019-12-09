@@ -6,9 +6,9 @@ pub type Word = i64;
 
 pub const MEMSIZE: usize = 2 << 11;  // 4 KiB
 
-pub const MODE_POSITION: Word = 0;
-pub const MODE_IMMEDIATE: Word = 1;
-pub const MODE_RELATIVE: Word = 2;
+const MODE_POSITION: Word = 0;
+const MODE_IMMEDIATE: Word = 1;
+const MODE_RELATIVE: Word = 2;
 
 /// An Intcode program
 pub struct Program(Vec<Word>);
@@ -76,6 +76,11 @@ impl IntcodeEmulator {
         self.mem.splice(..program.0.len(), program.0.iter().copied());
     }
 
+    /// Get debugging flag
+    pub fn get_debug(&self) -> bool {
+        self.debug
+    }
+
     /// Set debugging flag
     pub fn set_debug(&mut self, debug: bool) {
         self.debug = debug;
@@ -103,7 +108,7 @@ impl IntcodeEmulator {
 
         self.current_instruction = self.current_instruction().map_err(|_| Exception::IllegalInstruction(self.mem[self.ip]))?;
         if self.debug {
-            eprintln!("{:08x} {}", self.ip, self.current_instruction.op);
+            self.print_disassembled();
         }
 
         if self.ip + self.current_instruction.op.nparams() >= self.mem.len() {
@@ -183,6 +188,33 @@ impl IntcodeEmulator {
                 }).collect();
             eprintln!("{} {:08x} {}", flag, addr, line.join(" "));
         }
+    }
+
+    /// Print the disassembled current instruction to the console
+    pub fn print_disassembled(&self) {
+        eprintln!("{:08x} {}", self.ip, self.disassemble().unwrap_or_else(|_| String::from("???")));
+    }
+
+    /// Disassemble the current instruction
+    pub fn disassemble(&self) -> Result<String, String> {
+        let instruction = self.current_instruction().map_err(|err| format!("Failed to decode instruction: {}", err))?;
+        let params: Vec<_> = self.mem[self.ip+1..].iter()
+            .chain([0].iter().cycle())
+            .take(instruction.op().nparams())
+            .enumerate()
+            .map(|(n, &p)| (instruction.mode_for(n + 1), p))
+            .collect();
+
+        let params_str: Vec<_> = params.iter().map(|&(m, p)| {
+            match m {
+                MODE_POSITION => format!("0x{:08x}", p),
+                MODE_IMMEDIATE => format!("${}", p),
+                MODE_RELATIVE => format!("%rb{:+}", p),
+                _ => format!("?{}", p),
+            }
+        }).collect();
+
+        Ok(format!("{} {}", instruction.op(), params_str.join(" ")))
     }
 
     /// Load a value from memory
