@@ -2,12 +2,8 @@
 # Advent of Code Day 7
 set -e
 
-for AMP in target/{release,debug}/intcode{,.exe}; do
-  if [[ -e "${AMP}" ]]; then
-    break
-  fi
-done
-PROG=../day07/input.txt
+cd "$(dirname "$0")"
+PROG='../day07/input.txt'
 
 # Generate all permutations of $1
 function permutations() {
@@ -22,6 +18,10 @@ EOF
   )
 }
 
+function intcode() {
+  cargo run -q --release -- "$@"
+}
+
 function part1() {
   local max=0
   local phases=''
@@ -30,8 +30,11 @@ function part1() {
   for perm in "${PERMUTATIONS[@]}"; do
     read -r -a p <<< "${perm}"
 
-    local signal="$( (echo "${p[0]}"; echo 0) | $AMP "${PROG}" | (echo "${p[1]}"; cat) | $AMP "${PROG}" | (echo "${p[2]}"; cat) | $AMP "${PROG}" | (echo "${p[3]}"; cat) | $AMP "${PROG}" | (echo "${p[4]}"; cat) | $AMP "${PROG}" )"
+    # Run pipeline
+    local signal
+    signal="$( (echo "${p[0]}"; echo 0) | intcode "${PROG}" | (echo "${p[1]}"; cat) | intcode "${PROG}" | (echo "${p[2]}"; cat) | intcode "${PROG}" | (echo "${p[3]}"; cat) | intcode "${PROG}" | (echo "${p[4]}"; cat) | intcode "${PROG}" )"
 
+    # Check if this is the new maximum
     if [[ $signal -gt $max ]]; then
       max="${signal}"
       phases="${p[*]}"
@@ -59,9 +62,11 @@ function part2() {
     echo "${p[0]}" >&3
     echo 0 >&3
 
+    # Run pipeline
     local signal
-    signal="$( $AMP "${PROG}" <&3 | (echo "${p[1]}"; cat) | $AMP "${PROG}" | (echo "${p[2]}"; cat) | $AMP "${PROG}" | (echo "${p[3]}"; cat) | $AMP "${PROG}" | (echo "${p[4]}"; cat) | $AMP "${PROG}" | tee /dev/fd/3 | tail -n 1 )"
+    signal="$( intcode "${PROG}" <&3 | (echo "${p[1]}"; cat) | intcode "${PROG}" | (echo "${p[2]}"; cat) | intcode "${PROG}" | (echo "${p[3]}"; cat) | intcode "${PROG}" | (echo "${p[4]}"; cat) | intcode "${PROG}" | tee /dev/fd/3 | tail -n 1 )"
 
+    # Check if this is the new maximum
     if [[ "${signal}" -gt "${max}" ]]; then
       max="${signal}"
       phases="${p[*]}"
