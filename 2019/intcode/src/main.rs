@@ -94,7 +94,9 @@ fn run(program: &Program, debug: bool, break_at_start: bool) {
                     Ok(val) => val,
                 };
 
-                cpu.add_input(input);
+                for val in input {
+                    cpu.add_input(val);
+                }
             },
             Exception::Output(out) => {
                 println!("{}", out);
@@ -125,16 +127,20 @@ fn run(program: &Program, debug: bool, break_at_start: bool) {
     }
 }
 
-fn read_input() -> Result<Word, String> {
+fn read_input() -> Result<Vec<Word>, String> {
     let mut inbuf = String::new();
-    io::stdin().read_line(&mut inbuf).map_err(|err| format!("Failed to read from STDIN: {}", err))?;
-    let input = inbuf.trim().parse::<Word>().map_err(|err| format!("Could parse STDIN: {}", err))?;
+    if io::stdin().read_line(&mut inbuf).map_err(|err| format!("Failed to read from stdin: {}", err))? == 0 {
+        return Err(String::from("stdin reached EOF"))
+    }
+    let input: Result<Vec<_>, _> = inbuf.trim().split_whitespace()
+        .map(|s| s.parse::<Word>().map_err(|err| format!("Could parse stdin: {}", err)))
+        .collect();
 
-    Ok(input)
+    Ok(input?)
 }
 
 fn attach_debugger(cpu: &mut IntcodeEmulator) {
-    // Read from TTY, even if STDIN is redirected
+    // Read from TTY, even if stdin is redirected
     let mut tty = match fs::File::open("/dev/tty") {
         Err(err) => {
             eprintln!("ERROR: Could not open TTY: {}", err);
@@ -188,7 +194,7 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
             "d" | "disassemble" => { cpu.print_disassembled(); Ok(()) },
             "s" | "step" => {
                 match cpu.step() {
-                    Err(Exception::Input) => read_input().map(|input| cpu.add_input(input)),
+                    Err(Exception::Input) => read_input().map(|input| for val in input { cpu.add_input(val) }),
                     Err(Exception::Output(val)) => {
                         println!("{}", val);
                         Ok(())
