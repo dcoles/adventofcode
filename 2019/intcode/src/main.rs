@@ -100,19 +100,23 @@ fn run(program: &Program, debug: bool, break_at_start: bool) {
                 println!("{}", out);
             },
             Exception::IllegalInstruction(opcode) => {
-                eprintln!("ERROR: Illegal instruction {} (ip: 0x{:08x})", opcode, cpu.ip());
+                eprintln!("ERROR: Illegal instruction {}", opcode);
                 if debug {
                     attach_debugger(&mut cpu);
                 } else {
+                    cpu.dump_registers();
+                    cpu.print_disassembled();
                     cpu.dump_memory();
                 }
                 process::exit(4);
             },
             Exception::SegmentationFault(addr) => {
-                eprintln!("Segmentation fault at 0x{:08x} (ip: 0x{:08x})", addr, cpu.ip());
+                eprintln!("Segmentation fault at 0x{:08x}", addr);
                 if debug {
                     attach_debugger(&mut cpu);
                 } else {
+                    cpu.dump_registers();
+                    cpu.print_disassembled();
                     cpu.dump_memory();
                 }
                 process::exit(11);
@@ -196,13 +200,14 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
             "i" | "input" => read_param(&args,1).map(|input| cpu.add_input(input)),
             "D" | "dump" => { cpu.dump_memory(); Ok(()) },
             "h" | "help" => {
-                eprintln!("p|print [addr]  Print contents of address");
+                eprintln!("p|print [ ADDR | $ip | $rb ]");
+                eprintln!("                Print contents of address");
                 eprintln!("c|continue      Continue execution");
                 eprintln!("q|quit          Exit debugger and terminate program");
                 eprintln!("d|disassemble   Disassemble current instruction");
                 eprintln!("s|step          Step to the next instruction");
                 eprintln!("i|input         Write input to the CPU");
-                eprintln!("dump            Dump memory to console");
+                eprintln!("D|dump          Dump memory to console");
                 eprintln!("h|help          Print this help");
                 Ok(())
             },

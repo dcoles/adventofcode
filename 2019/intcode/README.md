@@ -1,4 +1,54 @@
-# Intcode Emulator
+# Intcode Interpreter
+
+## Usage
+
+```
+USAGE: intcode [-d | --debug] [-B | --break] PROGRAM
+Run Intcode PROGRAM in the interpreter.
+
+-d, --debug    enable debugging mode (traces execution and break into debugger on exceptions)
+-B, --break    immediately break into debugger
+```
+
+The interpreter reads input from stdin and prints output to stdout.
+Interpreters can be linked together by piping the output of one interpreter into another.
+
+```shell
+# Run interpreter with fixed input
+$ intcode $PROGRAM <<< 5
+
+# Chain interpreters together
+$ intcode $PROGRAM | intcode $PROGRAM
+```
+
+The easiest way of running from a git checkout is using `cargo run -q --`.
+
+## Debugger
+
+If debugging is enabled (`--debug`) then exceptions will cause the interpreter to drop to a debugger.
+
+```
+$ intcode --debug $PROGRAM
+00000000 ADD 0x00000000 0x00000000 0x00000000
+ERROR: Illegal instruction 0 (ip: 0x00000004)
+00000004 ???
+debug>
+```
+
+The list of supported commands can be printed using `help`:
+
+```
+debug> help
+p|print [ ADDR | $ip | $rb ]
+                Print contents of address
+c|continue      Continue execution
+q|quit          Exit debugger and terminate program
+d|disassemble   Disassemble current instruction
+s|step          Step to the next instruction
+i|input         Write input to the CPU
+D|dump          Dump memory to console
+h|help          Print this help
+```
 
 ## Using with `binfmt_misc`
 

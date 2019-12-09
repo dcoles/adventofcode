@@ -170,6 +170,11 @@ impl IntcodeEmulator {
         Ok(())
     }
 
+    /// Dump registers to console
+    pub fn dump_registers(&self) {
+        eprintln!("ip:0x{:08x} rb:{}", self.ip, self.relbase);
+    }
+
     /// Dump memory to console
     pub fn dump_memory(&self) {
         eprintln!("Dumping memory...");
