@@ -3,7 +3,8 @@
 set -e
 
 cd "$(dirname "$0")"
-PROG='../day07/input.txt'
+BASEDIR="${PWD}"
+PROG="${BASEDIR}/../day07/input.txt"
 
 # Generate all permutations of $1
 function permutations() {

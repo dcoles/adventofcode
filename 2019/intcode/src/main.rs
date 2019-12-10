@@ -17,12 +17,13 @@ fn main() {
         Ok(program) => program,
     };
 
-    run(&program, args.debug, args.break_at_start);
+    run(&program, args.debug, args.break_at_start, args.dump);
 }
 
 fn parse_args() -> Args {
     let mut debug = false;
     let mut break_at_start = false;
+    let mut dump = false;
     let mut posargs = VecDeque::new();
 
     let args: Vec<_> = env::args().collect();
@@ -30,6 +31,8 @@ fn parse_args() -> Args {
         match arg.as_str() {
             "-d" | "--debug" => debug = true,
             "-B" | "--break" => break_at_start = true,
+            "-D" | "--dump" => dump = true,
+            "-h" | "--help" => { print_usage(); process::exit(0) },
             arg if arg.starts_with('-') => {
                 eprintln!("ERROR: Unknown argument '{}'", arg);
                 print_usage();
@@ -51,11 +54,16 @@ fn parse_args() -> Args {
         process::exit(2)
     }
 
-    Args { debug, break_at_start, program }
+    Args { debug, break_at_start, dump, program }
 }
 
 fn print_usage() {
-    eprintln!("USAGE: intcode [-d | --debug] [-B | --break] PROGRAM");
+    eprintln!("\
+USAGE: intcode [-d | --debug] [-B | --break] [-D | --dump] PROGRAM
+Run Intcode PROGRAM in the interpreter.
+
+-d, --debug    enable debugging mode (traces execution and break into debugger on exceptions)
+-B, --break    immediately break into debugger")
 }
 
 fn read_from_file<T: AsRef<Path>>(path: T) -> Result<Program, String> {
@@ -73,7 +81,7 @@ fn read_from_file<T: AsRef<Path>>(path: T) -> Result<Program, String> {
     Ok(Program::new(&instructions?))
 }
 
-fn run(program: &Program, debug: bool, break_at_start: bool) {
+fn run(program: &Program, debug: bool, break_at_start: bool, dump: bool) {
     let mut cpu = IntcodeEmulator::new();
     cpu.load_program(&program);
     cpu.set_debug(debug);
@@ -124,6 +132,10 @@ fn run(program: &Program, debug: bool, break_at_start: bool) {
                 process::exit(11);
             },
         }
+    }
+
+    if dump {
+        cpu.dump_memory();
     }
 }
 
@@ -269,5 +281,6 @@ fn print(cpu: &IntcodeEmulator, args: &[&str]) -> Result<(), String> {
 struct Args {
     debug: bool,
     break_at_start: bool,
+    dump: bool,
     program: String,
 }
