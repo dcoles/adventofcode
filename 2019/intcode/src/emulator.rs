@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 use std::convert::{TryInto, TryFrom};
-use std::fmt;
+use std::{fmt, fs, io};
+use std::path::Path;
+use std::io::BufRead;
 
 pub type Word = i64;
 
@@ -16,6 +18,21 @@ pub struct Program(Vec<Word>);
 impl Program {
     pub fn new(instructions: &[Word]) -> Program {
         Program(instructions.to_owned())
+    }
+
+    pub fn from_file<T: AsRef<Path>>(path: T) -> Result<Program, String> {
+        let file = fs::File::open(&path).map_err(|err| format!("Failed to open file: {}", err))?;
+
+        let mut reader = io::BufReader::new(file);
+        let mut line = String::new();
+        reader.read_line(&mut line).map_err(|err| format!("Failed to read line: {}", err))?;
+
+        let instructions: Result<Vec<Word>, String> = line.trim()
+            .split(',')
+            .map(|val| val.parse::<Word>().map_err(|err| { format!("Failed to parse value {:?}: {}", val, err) }))
+            .collect();
+
+        Ok(Program::new(&instructions?))
     }
 }
 

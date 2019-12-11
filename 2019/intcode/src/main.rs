@@ -1,15 +1,12 @@
-mod emulator;
-
 use std::{fs, env, process, io};
-use std::path::Path;
-use crate::emulator::{Program, IntcodeEmulator, Exception, Word};
+use intcode::emulator::{Program, IntcodeEmulator, Exception, Word};
 use std::io::BufRead;
 use std::collections::VecDeque;
 
 fn main() {
     let args = parse_args();
 
-    let program = match read_from_file(args.program) {
+    let program = match Program::from_file(args.program) {
         Err(err) => {
             eprintln!("ERROR: {}", err);
             process::exit(1);
@@ -64,21 +61,6 @@ Run Intcode PROGRAM in the interpreter.
 
 -d, --debug    enable debugging mode (traces execution and break into debugger on exceptions)
 -B, --break    immediately break into debugger")
-}
-
-fn read_from_file<T: AsRef<Path>>(path: T) -> Result<Program, String> {
-    let file = fs::File::open(&path).map_err(|err| format!("Failed to open file: {}", err))?;
-
-    let mut reader = io::BufReader::new(file);
-    let mut line = String::new();
-    reader.read_line(&mut line).map_err(|err| format!("Failed to read line: {}", err))?;
-
-    let instructions: Result<Vec<Word>, String> = line.trim()
-        .split(',')
-        .map(|val| val.parse::<Word>().map_err(|err| { format!("Failed to parse value {:?}: {}", val, err) }))
-        .collect();
-
-    Ok(Program::new(&instructions?))
 }
 
 fn run(program: &Program, debug: bool, break_at_start: bool, dump: bool) {
