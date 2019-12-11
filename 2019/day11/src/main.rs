@@ -1,5 +1,5 @@
 use intcode::emulator;
-use intcode::emulator::Word;
+use intcode::emulator::{Word, Program};
 use std::collections::{VecDeque, HashSet};
 use std::fmt;
 
@@ -10,30 +10,45 @@ const LEFT: Word = 0;
 const RIGHT: Word = 1;
 
 fn main() {
-    // Part 1
     let program = emulator::Program::from_file("input.txt").expect("Failed to read input");
 
+    // Part 1
+    println!("Part 1");
+    println!("══════");
+    let mut map = Map::new(80, 90);
+    run(&program, &mut map, Pos::new(45, 75));
+    println!("Number of panels painted at least once: {}", map.painted.len());
+    println!();
+
+    // Part 2
+    println!("Part 2");
+    println!("══════");
+    let start = Pos::new(1, 1);
+    let mut map = Map::new(80, 8);
+    map.paint(start, WHITE);
+    run(&program, &mut map, start);
+}
+
+fn run(program: &Program, map: &mut Map, pos: Pos) {
     let mut cpu = emulator::IntcodeEmulator::new();
     cpu.load_program(&program);
 
-    let mut map = Map::new(100, 150);
-    let mut robot = Robot::new(Pos::new(map.width/2, map.height/2));
+    let mut robot = Robot::new(pos);
 
     loop {
         match cpu.run() {
             emulator::Exception::Halt => break,
             emulator::Exception::Input => {
-                cpu.add_input(robot.camera(&map));
+                cpu.add_input(robot.camera(map));
             },
             emulator::Exception::Output(word) => {
-                robot.handle_input(word, &mut map);
+                robot.handle_input(word, map);
             },
             exception => panic!("Unhandled exception: {}", exception),
         }
     }
 
     map.draw();
-    println!("Part 1: Number of panels painted at least once: {}", map.painted.len());
 }
 
 struct Map {
@@ -64,10 +79,10 @@ impl Map {
     fn draw(&self) {
         for y in 0..self.height {
             for x in 0..self.width {
-                let pos = Pos::new(x, y);
+            let pos = Pos::new(x, y);
                 match self.at(pos) {
-                    BLACK => print!("."),
-                    WHITE => print!("#"),
+                    BLACK => print!("░"),
+                    WHITE => print!("█"),
                     _ => print!("?"),
                 }
             }
@@ -94,6 +109,7 @@ impl Robot {
     fn handle_input(&mut self, input: Word, map: &mut Map) {
         self.input_buffer.push_back(input);
         if self.input_buffer.len() < 2 {
+            // Need more input
             return;
         }
 
