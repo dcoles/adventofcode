@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::{fs, fmt};
 use std::collections::{HashSet, HashMap};
-use std::cmp::Ordering;
 
 const ASTEROID: char = '#';
 
@@ -51,14 +50,8 @@ fn asteroids_zapped(origin: Pos, asteroids: &HashSet<Pos>) -> Vec<Pos> {
     let mut zapped = Vec::new();
     let mut asteroids_by_angle = asteroid_angles(origin, asteroids);
 
-    // Find the first index with an angle greater than 0 deg.
-    let first_idx = asteroids_by_angle.iter().enumerate()
-        .find(|&(_, (a, _))| a.partial_cmp(&0f32).unwrap() != Ordering::Less)
-        .map(|(n, _)| n)
-        .unwrap_or(0);  // All asteroids are in the upper-left quadrant
-
-    let mut i = first_idx;
-    for _ in 1..=(asteroids.len() - 1) {  // excluding the origin
+    let mut i = 0;
+    for _ in 1..asteroids.len() {  // excluding the origin
         // Skip angles with no asteroids left
         while asteroids_by_angle[i].1.is_empty() {
             i = (i + 1) % asteroids_by_angle.len();
@@ -82,14 +75,18 @@ fn asteroid_angles(origin: Pos, positions: &HashSet<Pos>) -> Vec<(f32, Vec<Pos>)
     }
 
     // Sort positions by distance
-    for (_, posns) in &mut gradients {
+    for posns in gradients.values_mut() {
         // Sort by distance
         posns.sort_by_key(|&pos| -origin.distance(pos));
     }
 
     // Map gradient to vector sorted by angles
     let mut angles: Vec<(f32, Vec<Pos>)> = gradients.into_iter().map(|((dx, dy), posns)| {
-        let angle = (dx as f32).atan2(-dy as f32);
+        let angle = match (dx as f32).atan2(-dy as f32) {
+            // Map from (-π, π] to [0, 2π)
+            angle if dx < 0 => angle + 2.0 * std::f32::consts::PI,
+            angle => angle,
+        };
 
         (angle, posns)
     }).collect();
@@ -157,7 +154,7 @@ impl Pos {
         Pos { x, y }
     }
 
-    fn gradient(&self, target: Pos) -> (i32, i32) {
+    fn gradient(self, target: Pos) -> (i32, i32) {
         let dx = target.x - self.x;
         let dy = target.y - self.y;
 
@@ -166,7 +163,7 @@ impl Pos {
         (dx / q, dy / q)
     }
 
-    fn distance(&self, b: Pos) -> i32 {
+    fn distance(self, b: Pos) -> i32 {
         (b.x - self.x).pow(2) + (b.y - self.y).pow(2)
     }
 
