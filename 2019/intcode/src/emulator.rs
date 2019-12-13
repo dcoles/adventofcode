@@ -86,6 +86,11 @@ impl IntcodeEmulator {
         &self.mem
     }
 
+    /// The current memory contents
+    pub fn mem_mut(&mut self) -> &mut [Word] {
+        &mut self.mem
+    }
+
     /// Load a program into memory
     pub fn load_program(&mut self, program: &Program) {
         self.ip = 0;
@@ -321,16 +326,16 @@ impl From<Instruction> for Word {
 /// Opcodes
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Opcode {
-    Add,  // [p3] = [p1] + [p2]
-    Mul,  // [p3] = [p1] * [p2]
-    Input,  // [p1] = read(STDIN)
-    Output,  // write(STDOUT) = [p1]
-    JumpIfTrue,  // if [p1] != 0 { ip = [p2] }
-    JumpIfFalse,  // if [p1] == 0 { ip = [p2] }
-    LessThan,  // [p3] = if [p1] < [p2] { 1 } else { 0 }
-    Equal,  // [p3] = if [p1] == [p2] { 1 } else { 0 }
-    SetRBOffset,  // relbase += [p1]
-    Halt,  // ...but don't catch fire
+    Add,  // 1: [p3] = [p1] + [p2]
+    Mul,  // 2: [p3] = [p1] * [p2]
+    Input,  // 3: [p1] = read(STDIN)
+    Output,  // 4: write(STDOUT) = [p1]
+    JumpIfTrue,  // 5: if [p1] != 0 { ip = [p2] }
+    JumpIfFalse,  // 6: if [p1] == 0 { ip = [p2] }
+    LessThan,  // 7: [p3] = if [p1] < [p2] { 1 } else { 0 }
+    Equal,  // 8: [p3] = if [p1] == [p2] { 1 } else { 0 }
+    SetRBOffset,  // 9: relbase += [p1]
+    Halt,  // 99: ...but don't catch fire
 }
 
 impl Opcode {
