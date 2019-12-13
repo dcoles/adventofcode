@@ -1,6 +1,7 @@
 use intcode::emulator::{Program, IntcodeEmulator, Exception, Word};
 use std::collections::{VecDeque};
-use std::{fmt, cmp, time, thread, env};
+use std::{fmt, cmp, time, thread, env, io};
+use std::io::Write;
 
 const WIDTH: usize = 44;
 const HEIGHT: usize = 20;
@@ -12,8 +13,7 @@ fn main() {
     // Part 1
     let mut arcade = ArcadeCabinet::new(&program);
     arcade.run();
-    let n_block = arcade.grid.iter().filter(|&&v| v == Tile::Block).count();
-    println!("Part 1: Tiles on screen: {}", n_block);
+    println!("Part 1: Tiles on screen: {}", arcade.n_blocks);
 
     // Part 2
     println!("Part 2:");
@@ -38,10 +38,10 @@ struct ArcadeCabinet {
     cpu: IntcodeEmulator,
     fps: u64,
     score: Word,
-    grid: [Tile; WIDTH * HEIGHT],
     output_queue: VecDeque<Word>,
     ball_pos: (Word, Word),
     paddle_pos: (Word, Word),
+    n_blocks: u32,
 }
 
 impl ArcadeCabinet {
@@ -49,7 +49,7 @@ impl ArcadeCabinet {
         let mut cpu = IntcodeEmulator::new();
         cpu.load_program(program);
 
-        ArcadeCabinet { cpu, fps: FPS, score: 0, grid: [Tile::Empty; WIDTH * HEIGHT], output_queue: VecDeque::new(), ball_pos: (0, 0), paddle_pos: (0, 0) }
+        ArcadeCabinet { cpu, fps: FPS, score: 0, output_queue: VecDeque::new(), ball_pos: (0, 0), paddle_pos: (0, 0), n_blocks: 0 }
     }
 
     fn freeplay(&mut self) {
@@ -60,42 +60,14 @@ impl ArcadeCabinet {
         self.fps = 9999;
     }
 
-    fn display(&self) {
-        print!("\x1B[8;{};{}t", HEIGHT + 2, WIDTH);  // Resize console
-        print!("\x1B[H");  // Move cursor to HOME
-        print!("\x1B[2K");  // Clear score line
-        print!("\x1B]0;SCORE: {:08}\x07", self.score);  // Show score in console title
-        println!("SCORE: {:08}", self.score);
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                print!("{}", self.at(x, y));
-            }
-            println!();
-        }
-    }
-
-    fn at(&self, x: usize, y: usize) -> Tile {
-        assert!(x < WIDTH, "x out of range: {} exceeds WIDTH", x);
-        assert!(y < HEIGHT, "y out of range: {} exceeds HEIGHT", x);
-        self.grid[y * WIDTH + x]
-    }
-
-    fn at_mut(&mut self, x: usize, y: usize) -> &mut Tile {
-        assert!(x < WIDTH, "x out of range: {} exceeds WIDTH", x);
-        assert!(y < HEIGHT, "y out of range: {} exceeds HEIGHT", x);
-        &mut self.grid[y * WIDTH + x]
-    }
-
     fn run(&mut self) {
+        print!("\x1B[8;{};{}t", HEIGHT + 2, WIDTH);  // Resize console
         print!("\x1B[2J");  // Clear screen
         print!("\x1B[?25l");  // Hide cursor
 
         loop {
             match self.cpu.run() {
-                Exception::Halt => {
-                    self.display();
-                    break
-                },
+                Exception::Halt => break,
                 Exception::Input => self.handle_input(),
                 Exception::Output(word) => self.handle_output(word),
                 exception => {
@@ -130,23 +102,45 @@ impl ArcadeCabinet {
         let tile_id = self.output_queue.pop_front().unwrap();
 
         if x == -1 && y == 0 {
-            self.score = tile_id;
+            self.update_score(tile_id);
         } else {
             let tile = tile_id.into();
-            *self.at_mut(x as usize, y as usize) = tile;
 
             match tile {
                 Tile::Ball => {
                     self.ball_pos = (x, y);
-                    self.display();
+                    self.draw_tile(tile, (x, y));
+
+                    // Update of the ball position is used to flush display output
+                    // and rate-limit the game's FPS
+                    io::stdout().flush().expect("Failed to flush stdout");
                     if self.fps < 1000 {
                         thread::sleep(time::Duration::from_micros(1_000_000 / self.fps));
                     }
                 },
-                Tile::Paddle => self.paddle_pos = (x, y),
-                _ => (),
+                Tile::Paddle => {
+                    self.paddle_pos = (x, y);
+                    self.draw_tile(tile, (x, y));
+                },
+                Tile::Block => {
+                    self.n_blocks += 1;
+                    self.draw_tile(tile, (x, y));
+                },
+                _ => self.draw_tile(tile, (x, y)),
             }
         }
+    }
+
+    fn draw_tile(&self, tile: Tile, pos: (Word, Word)) {
+        print!("\x1B[{};{}H{}", pos.1 + 2, pos.0 + 1, tile);
+    }
+
+    fn update_score(&mut self, score: Word) {
+        print!("\x1B[H");  // Move cursor to HOME
+        print!("\x1B[2K");  // Clear score line
+        print!("\x1B]0;SCORE: {:08}\x07", self.score);  // Show score in console title
+        println!("SCORE: {:08}", self.score);
+        self.score = score;
     }
 }
 
