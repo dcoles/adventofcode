@@ -3,56 +3,99 @@ use std::path::Path;
 use std::collections::{HashMap, VecDeque};
 
 type Chemical = String;
-type ChemicalRef = str;
 
-const ORE: &'static ChemicalRef = "ORE";
-const FUEL: &'static ChemicalRef = "FUEL";
+const ORE: &str = "ORE";
+const FUEL: &str = "FUEL";
+const TRILLION: u64 = 1_000_000_000_000;
 
 fn main() {
-    // Part 1
-    assert_eq!(31, required_ore(&read_input("sample1.txt")));
-    assert_eq!(165, required_ore(&read_input("sample2.txt")));
+    let input = read_input("input.txt");
 
-    println!("Part 1: Required Ore {}", required_ore(&read_input("input.txt")));
+    // Part 1
+    assert_eq!(31, required_ore(&read_input("sample1.txt"), 1));
+    assert_eq!(165, required_ore(&read_input("sample2.txt"), 1));
+    assert_eq!(13312, required_ore(&read_input("sample3.txt"), 1));
+    assert_eq!(180697, required_ore(&read_input("sample4.txt"), 1));
+    assert_eq!(2210736, required_ore(&read_input("sample5.txt"), 1));
+
+    println!("Part 1: Required ore: {}", required_ore(&input, 1));
+
+    // Part 2
+    assert_eq!(82892753, maximum_fuel(&read_input("sample3.txt"), TRILLION));
+    assert_eq!(5586022, maximum_fuel(&read_input("sample4.txt"), TRILLION));
+    assert_eq!(460664, maximum_fuel(&read_input("sample5.txt"), TRILLION));
+
+    println!("Part 2: Maximum fuel: {}", maximum_fuel(&input, TRILLION));
 }
 
-fn required_ore(reactions: &[Reaction]) -> u32 {
+/// Find the amount of ore required for n-units of fuel
+fn required_ore(reactions: &[Reaction], fuel: u64) -> u64 {
     let reactant_map = build_reactant_map(reactions);
-
-    let mut requirements = VecDeque::new();
-    requirements.push_back((FUEL, 1));
-
     let mut required_ore = 0;
+
+    // Queue of required chemicals
+    let mut requirements = VecDeque::new();
+    requirements.push_back((FUEL, fuel));
+
+    // Surplus from previous reactions
     let mut chemical_surplus = HashMap::new();
-    while let Some((chemical, quantity)) = requirements.pop_front() {
+
+    // Run required reactions
+    while let Some((chemical, mut quantity)) = requirements.pop_front() {
         if chemical == ORE {
             required_ore += quantity;
         } else {
-            let surplus = chemical_surplus.get(chemical).copied().unwrap_or(0);
-            let consumed = quantity.min(surplus);
-            chemical_surplus.insert(chemical, surplus - consumed);
-            let quantity = quantity - consumed;
+            // Can we use some surplus?
+            if let Some(&surplus) = chemical_surplus.get(chemical) {
+                let consumed = quantity.min(surplus);
+                chemical_surplus.insert(chemical, surplus - consumed);
+                quantity -= consumed;
 
-            if quantity == 0 {
-                // No need to run a reaction!
-                continue;
+                // No need to run if we have enough surplus
+                if quantity == 0 {
+                    continue;
+                }
             }
 
+            // How many times do we need to run a reaction?
             let reaction = &reactant_map[chemical];
-            let n_reactions = (quantity - 1) / reaction.output.1 + 1;
+            let n_reactions = (quantity - 1) / reaction.quantity + 1;
 
-            for (chem, &n) in &reaction.inputs {
+            // How much reactants do we need?
+            for (chem, &n) in &reaction.reactants {
                 let amount = n * n_reactions;
-                println!("{} {} requires {} {}", quantity, chemical, amount, chem);
                 requirements.push_back((chem, amount));
             }
 
-            let surplus = reaction.output.1 * n_reactions - quantity;
+            // Collect surplus
+            let surplus = reaction.quantity * n_reactions - quantity;
             *chemical_surplus.entry(chemical).or_default() += surplus;
         }
     }
 
     required_ore
+}
+
+/// Find the maximum amount of fuel a fixed amount of ore can produce
+fn maximum_fuel(reactions: &[Reaction], ore: u64) -> u64 {
+    let mut fuel = 0;
+
+    // Do an exponential search for the required fuel
+    loop {
+        let mut n = 0;
+        while required_ore(reactions, fuel + 2u64.pow(n)) < ore {
+            n += 1;
+        }
+
+        if n > 0 {
+            fuel += 2u64.pow(n - 1);
+        } else {
+            // Found the maximum
+            break;
+        }
+    }
+
+    fuel
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Vec<Reaction> {
@@ -61,51 +104,56 @@ fn read_input<T: AsRef<Path>>(path: T) -> Vec<Reaction> {
     let mut reactions = Vec::new();
     for line in contents.lines() {
         let line: Vec<_> = line.split("=>").collect();
-        let input = split_chemical_list(&line[0]);
-        let output = split_chemical(&line[1]);
+        let reactants = parse_chemical_list(&line[0]);
+        let product_quantity = parse_chemical(&line[1]);
 
-        reactions.push(Reaction { inputs: input, output })
+        reactions.push(Reaction { reactants, product: product_quantity.0, quantity: product_quantity.1 })
     }
 
     reactions
 }
 
-fn split_chemical_list(list: &str) -> HashMap<Chemical, u32> {
+/// Parse a list of chemicals quantities, `N CHEMICAL, ...`
+fn parse_chemical_list(list: &str) -> HashMap<Chemical, u64> {
     let mut result = HashMap::new();
-    for (c, n) in list.split(',').map(|value| split_chemical(value)) {
+    for (c, n) in list.split(',').map(|value| parse_chemical(value)) {
         result.insert(c, n);
     }
 
     result
 }
 
-fn split_chemical(value: &str) -> (Chemical, u32) {
+/// Parse a single chemical quantity, `N CHEMICAL`
+fn parse_chemical(value: &str) -> (Chemical, u64) {
     let value: Vec<_> = value.trim().split(' ').collect();
-    let n: u32 = value[0].parse().expect("Failed to parse quantity");
+    let n: u64 = value[0].parse().expect("Failed to parse quantity");
 
     (value[1].to_owned(), n)
 }
 
+/// Build a mapping from Chemical to its associated reaction
 fn build_reactant_map(reactions: &[Reaction]) -> HashMap<Chemical, &Reaction> {
     let mut map = HashMap::new();
 
     for reaction in reactions {
-        let chemical = reaction.output.0.to_owned();
+        let chemical = reaction.product.to_owned();
         map.insert(chemical, reaction);
     }
 
     map
 }
 
+/// A chemical reaction
 #[derive(Debug)]
 struct Reaction {
-    inputs: HashMap<Chemical, u32>,
-    output: (Chemical, u32),
+    reactants: HashMap<Chemical, u64>,
+    product: Chemical,
+    quantity: u64,
 }
 
 impl fmt::Display for Reaction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inputs = self.inputs.iter().map(|(c, &n)| format!("{} {}", n, c)).collect::<Vec<_>>().join(", ");
-        write!(f, "{} => {} {}", inputs, self.output.1, self.output.0)
+        let inputs = self.reactants.iter().map(|(c, &n)| format!("{} {}", n, c)).collect::<Vec<_>>().join(", ");
+        write!(f, "{} => {} {}", inputs, self.quantity, self.product)
     }
 }
