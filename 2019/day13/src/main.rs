@@ -7,6 +7,9 @@ const WIDTH: usize = 44;
 const HEIGHT: usize = 20;
 const FPS: u64 = 12;
 
+// Use full-width characters for the score (not all terminals support)
+const FULLWIDTH: bool = true;
+
 fn main() {
     let program = Program::from_file("input.txt").expect("Failed to read input");
 
@@ -78,6 +81,9 @@ impl ArcadeCabinet {
                 },
             }
         }
+
+        // Make sure previous line is closed
+        println!();
     }
 
     fn handle_input(&mut self) {
@@ -132,14 +138,44 @@ impl ArcadeCabinet {
     }
 
     fn draw_tile(&self, tile: Tile, pos: (Word, Word)) {
-        print!("\x1B[{};{}H{}", pos.1 + 2, pos.0 + 1, tile);
+        let color = match tile {
+           Tile::Block => match pos.1 {
+                2..=3 => "\x1B[35m",  // Magenta
+                4..=5 => "\x1B[31m",  // Red
+                6..=7 => "\x1B[33m",  // Yellow
+                8..=9 => "\x1B[32m",  // Green
+                10..=11 => "\x1B[34m",  // Blue
+                12..=13 => "\x1B[36m",  // Cyan
+                _ => "",
+            },
+            Tile::Ball | Tile::Paddle => "\x1B[35;1m",  // Magenta
+            _ => "",
+        };
+        print!("\x1B[{};{}H{}{}\x1B[m", pos.1 + 2, pos.0 + 1, color, tile);
     }
 
     fn update_score(&mut self, score: Word) {
         print!("\x1B[H");  // Move cursor to HOME
         print!("\x1B[2K");  // Clear score line
-        print!("\x1B]0;SCORE: {:08}\x07", self.score);  // Show score in console title
-        println!("SCORE: {:08}", self.score);
+        print!("\x1B]0;SCORE: {:08}\x07", score);  // Show score in console title
+        if FULLWIDTH {
+            let chars: String = format!("{:08}", score).chars().map(|c| match c {
+                '0' => '０',
+                '1' => '１',
+                '2' => '２',
+                '3' => '３',
+                '4' => '４',
+                '5' => '５',
+                '6' => '６',
+                '7' => '７',
+                '8' => '８',
+                '9' => '９',
+                _ => '?',
+            }).collect();
+            println!("SCORE: {}", chars);
+        } else {
+            println!("SCORE: {:08}", score);
+        }
         self.score = score;
     }
 }
@@ -159,7 +195,7 @@ impl Tile {
         match self {
             Empty => ' ',
             Wall => '█',
-            Block => '□',
+            Block => '■',
             Paddle => '═',
             Ball => '●',
         }
