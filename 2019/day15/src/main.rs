@@ -1,17 +1,17 @@
 use intcode::emulator::{IntcodeEmulator, Program, Exception, Word};
 use std::convert::{TryFrom, TryInto};
-use std::collections::HashMap;
-use std::{io, ops, thread};
+use std::collections::{HashMap, HashSet};
+use std::{io, ops, thread, env};
 use std::io::Write;
 use std::time::Duration;
-
-type Map = HashMap<Pos, char>;
 
 const UNKNOWN: char = ' ';
 const WALL: char = '#';
 const OPEN: char = '.';
 const TARGET: char = '*';
 const DROID: char = '@';
+const DEAD: char = '+';
+const DEAD_END: u32 = std::u32::MAX;
 const BEL: &str = "";  // Set to "\x07" if you feel your life lacks excitement
 const ORIGIN: Pos = Pos::new(0, 0);
 const WIDTH: u32 = 80;
@@ -20,49 +20,9 @@ const SCREEN_OFFSET_X: u32 = 40;
 const SCREEN_OFFSET_Y: u32 = 30;
 const FPS: u64 = 12;
 
-fn main() {
-    let program = Program::from_file("input.txt").expect("Failed to read input");
-
-    let mut map: HashMap<Pos, char> = HashMap::new();
-    map.insert(ORIGIN, OPEN);  // We start in the open
-
-    let mut droid = Droid::new(&program, ORIGIN);
-    let mut planner = Planner::new();
-
-    print!("\x1B[2J");  // Clear screen
-    print!("\x1B[?25l");  // Hide cursor
-    print!("\x1B[8;{};{}t", HEIGHT, WIDTH);  // Resize console
-
-    // Find the leak
-    let mut target = ORIGIN;
-    for t in 0.. {
-        draw( *map.get(&droid.pos).unwrap(), droid.pos);
-        let command = planner.plan(&map, droid.pos);
-        target = droid.pos + command.direction();
-        match droid.input(command) {
-            Status::Wall => {
-                map.insert(target, WALL);
-                draw( WALL, target);
-            },
-            Status::Moved => {
-                map.insert(target, OPEN);
-                draw( OPEN, target);
-            },
-            Status::MovedAndFoundTarget => {
-                map.insert(target, TARGET);
-                draw( TARGET, target);
-                print_status(&format!("Steps {}", t));
-                thread::sleep(Duration::from_secs(10));
-                break;
-            },
-        }
-        draw( DROID, droid.pos);
-        io::stdout().flush().expect("Failed to flush stdout");
-        thread::sleep(Duration::from_millis(1000 / FPS));
-    }
-
-    let distance = planner.distance.get(&target).unwrap();
-    print_status(&format!("Found leak at {:?} (distance: {})", target, distance));
+// Helper macro for printing the status line
+macro_rules! print_status {
+    ( $($e:expr),* ) => { print_status(&format!($($e),*)) };
 }
 
 fn draw(tile: char, pos: Pos) {
@@ -70,6 +30,7 @@ fn draw(tile: char, pos: Pos) {
         TARGET => "\x1B[31m",  // Red
         DROID => "\x1B[32m",  // Green
         OPEN => "\x1B[34m",  // Blue
+        DEAD => "\x1B[33m",  // Yellow
         _ => "",
     };
     print!("\x1B[{};{}H{}{}\x1B[m", SCREEN_OFFSET_Y as i32 - pos.y + 1, SCREEN_OFFSET_X as i32 + pos.x + 1, color, tile);
@@ -80,45 +41,145 @@ fn print_status(message: &str) {
     println!("\x1B[{}H\x1B[K{}", HEIGHT - 1, message);
 }
 
+fn main() {
+    let turbo = env::args().skip(1).any(|arg| &arg == "--turbo");
+
+    let program = Program::from_file("input.txt").expect("Failed to read input");
+
+    let mut droid = Droid::new(&program, ORIGIN);
+    let mut planner = Planner::new();
+
+    print!("\x1B[2J");  // Clear screen
+    print!("\x1B[?25l");  // Hide cursor
+    print!("\x1B[8;{};{}t", HEIGHT, WIDTH);  // Resize console
+
+    // Find the leak
+    let mut leak = None;
+    while let Some(command) = planner.plan(droid.pos) {
+        // Clear the droid from the map
+        draw( planner.get_tile(droid.pos), droid.pos);
+
+        let target = droid.pos + command.direction();
+        match droid.input(command) {
+            Status::Wall => {
+                planner.update_map(target, WALL);
+                draw( WALL, target);
+            },
+            Status::Moved => {
+                planner.update_map(target, OPEN);
+                draw( OPEN, target);
+            },
+            Status::MovedAndFoundTarget => {
+                leak = Some(target);
+                planner.update_map(target, TARGET);
+                draw( TARGET, target);
+            },
+        }
+
+        draw( DROID, droid.pos);
+        io::stdout().flush().expect("Failed to flush stdout");
+
+        if !turbo {
+            thread::sleep(Duration::from_millis(1000 / FPS));
+        }
+    }
+
+    let leak = leak.expect("No leak found");
+    let distance = planner.distance_from_origin(leak);
+    print_status!("Found leak at {:?} (distance: {})", leak, distance);
+
+    print!("\x1Bc");  // Reset the terminal
+}
+
 struct Planner {
-    visits: HashMap<Pos, u32>,
+    map: HashMap<Pos, char>,
+    cost: HashMap<Pos, u32>,
     distance: HashMap<Pos, u32>,
+    unexplored: HashSet<Pos>,
 }
 
 impl Planner {
     fn new() -> Self {
-        let mut distance = HashMap::new();
-        distance.insert(ORIGIN, 0);
-        Planner { visits: HashMap::new(), distance }
+        let map = [(ORIGIN, OPEN)].iter().copied().collect();  // We start in the open
+        let cost = [(ORIGIN, 1)].iter().copied().collect();  // Already visited origin
+        let distance = [(ORIGIN, 0)].iter().copied().collect();
+
+        Planner { map, cost, distance, unexplored: HashSet::new() }
     }
 
-    fn plan(&mut self, map: &Map, current_pos: Pos) -> MovementCommand {
+    fn plan(&mut self, current_pos: Pos) -> Option<MovementCommand> {
         use MovementCommand::*;
 
         // Find valid tile choices (e.g. not a wall)
-        let mut choices: Vec<_> = [North, South, East, West].iter()
+        let mut choices: Vec<(MovementCommand, Pos, char)> = [North, South, East, West].iter()
             .map(|&command| {
                 let target = current_pos + command.direction();
 
-                (command, target, *map.get(&target).unwrap_or(&UNKNOWN))
+                (command, target, self.get_tile(target))
             })
-            .filter(|&(_, _, tile)| tile != WALL)
+            // Don't try tiles or dead-end
+            .filter(|&(_, pos, tile)| tile != WALL && !self.is_dead_end(pos))
             .collect();
+
+        if choices.len() == 1 {
+            // This path leads to a dead-end
+            if self.get_tile(current_pos) == OPEN {
+                self.update_map(current_pos, DEAD);
+            }
+            self.cost.insert(current_pos, DEAD_END);
+        }
+
+        // Keep track of places we seen, but haven't explored yet
+        let unexplored_choices: Vec<_> = choices.iter()
+            .filter(|&&(_, pos, _)| self.get_tile(pos) == UNKNOWN)
+            .map(|&(_, pos, _)| pos).collect();
+        self.unexplored.extend(&unexplored_choices);
+
+        if self.unexplored.is_empty() {
+            // Stop when there's no where left to explore
+            return None;
+        }
 
         // Sort by attempted visits to the tile
         // (We could also take into account the distance from origin, but this does pretty well)
-        choices.sort_by_key(|&(_, pos, _)| self.visits.get(&pos).unwrap_or(&0));
+        choices.sort_by_key(|&(_, pos, _)| self.cost(pos));
 
         // Pick the first one
         let &(command, target, _) = choices.first().unwrap();
-        *self.visits.entry(target).or_default() += 1;
+        *self.cost.entry(target).or_default() += 1;
+        self.unexplored.remove(&target);
 
         // Update our distance calculation
-        let &cur_distance = self.distance.get(&current_pos).unwrap();
-        let &target_distance = self.distance.get(&target).unwrap_or(&std::u32::MAX);
-        self.distance.insert(target, target_distance.min(cur_distance + 1));
+        let distance = self.distance_from_origin(current_pos) + 1;
+        let target_distance = self.distance_from_origin(target);
+        self.distance.insert(target, target_distance.min(distance));
 
-        command
+        Some(command)
+    }
+
+    /// What do we know about this tile
+    fn get_tile(&self, pos: Pos) -> char {
+        self.map.get(&pos).copied().unwrap_or(UNKNOWN)
+    }
+
+    /// Update the map
+    fn update_map(&mut self, pos: Pos, tile: char) {
+        self.map.insert(pos, tile);
+    }
+
+    /// Distance postion is from origin
+    fn distance_from_origin(&self, pos: Pos) -> u32 {
+        self.distance.get(&pos).copied().unwrap_or(std::u32::MAX)
+    }
+
+    /// Cost for movement to this position
+    fn cost(&self, pos: Pos) -> u32 {
+        self.cost.get(&pos).copied().unwrap_or(0)
+    }
+
+    /// Is this position considered a dead-end
+    fn is_dead_end(&self, pos: Pos) -> bool {
+        self.cost.get(&pos).copied().unwrap_or(0) == DEAD_END
     }
 }
 
@@ -146,14 +207,14 @@ impl Droid {
                     let status: Status = word.try_into().expect("Unknown status");
                     match status {
                         Status::Wall => {
-                            print_status(&format!("{}* Bonk! *", BEL));
+                            print_status!("{}* Bonk! *", BEL);
                         },
                         Status::Moved => {
-                            print_status("");
+                            print_status!("");
                             self.moved(movement);
                         },
                         Status::MovedAndFoundTarget => {
-                            print_status("");
+                            print_status!("");
                             self.moved(movement);
                         },
                     }
@@ -259,5 +320,5 @@ impl TryFrom<Word> for Status {
             _ => Err(()),
         }
     }
-
 }
+
