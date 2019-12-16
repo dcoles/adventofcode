@@ -1,8 +1,10 @@
 use intcode::emulator::{IntcodeEmulator, Program, Exception, Word};
 use std::convert::{TryFrom, TryInto};
 use std::collections::{HashMap, HashSet};
-use std::{ops, thread, env};
+use std::{ops, thread, env, io};
 use std::time::Duration;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 const UNKNOWN: char = ' ';
 const WALL: char = '#';
@@ -62,7 +64,7 @@ fn main() {
         draw( planner.get_tile(droid.pos), droid.pos);
 
         let target = droid.pos + command.direction();
-        match droid.input(command) {
+        match droid.execute(command) {
             Status::Wall => {
                 planner.update_map(target, WALL);
                 draw( WALL, target);
@@ -82,7 +84,7 @@ fn main() {
         print_status!("{:?} (distance: {})", droid.pos, planner.distance_from_origin(droid.pos));
 
         if !turbo {
-            //thread::sleep(Duration::from_millis(1000 / FPS));
+            thread::sleep(Duration::from_millis(1000 / FPS));
         }
     }
 
@@ -223,44 +225,61 @@ impl Planner {
 
 struct Droid {
     pos: Pos,
+    state: Rc<RefCell<DroidState>>,
     cpu: IntcodeEmulator,
 }
 
 impl Droid {
     fn new(program: &Program, pos: Pos) -> Droid {
-        let mut cpu = IntcodeEmulator::new();
+        let state = Rc::new(RefCell::new(DroidState { next_command: None, status: Status::Moved }));
+
+        let state_ = Rc::clone(&state);
+        let input_handler = Box::new(move || state_.borrow_mut().handle_input());
+        let state_ = Rc::clone(&state);
+        let output_handler = Box::new(move |word| state_.borrow_mut().handle_output(word));
+
+        let mut cpu = IntcodeEmulator::new(input_handler, output_handler);
         cpu.load_program(program);
 
-        Droid { pos, cpu }
+        Droid { pos, state, cpu }
     }
 
-    fn input(&mut self, movement: MovementCommand) -> Status {
-        loop {
-            match self.cpu.run() {
-                Exception::Halt => panic!("Program halted"),
-                Exception::Input => {
-                    self.cpu.add_input(movement.into());
-                },
-                Exception::Output(word) => {
-                    let status: Status = word.try_into().expect("Unknown status");
-                    match status {
-                        Status::Moved => {
-                            self.moved(movement);
-                        },
-                        Status::MovedAndFoundTarget => {
-                            self.moved(movement);
-                        },
-                        _ => (),
-                    }
-                    return status;
-                },
-                exception => panic!("Unhandled exception: {}", exception),
-            }
+    fn execute(&mut self, command: MovementCommand) -> Status {
+        self.state.borrow_mut().next_command = Some(command);
+
+        match self.cpu.run_until_output() {
+            Err(Exception::Halt) => panic!("Program halted"),
+            Err(exception) => panic!("Unhandled exception: {}", exception),
+            Ok(_) => (),
+        }
+
+        let status = self.state.borrow().status;
+        if status.is_movement() {
+            self.pos += command.direction();
+        }
+
+        status
+    }
+}
+
+struct DroidState {
+    next_command: Option<MovementCommand>,
+    status: Status,
+}
+
+impl DroidState {
+    fn handle_input(&mut self) -> io::Result<Word> {
+        if let Some(next_command) = self.next_command {
+            self.next_command = None;
+            Ok(next_command.into())
+        } else {
+            Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Missing next command"))
         }
     }
 
-    fn moved(&mut self, command: MovementCommand) {
-        self.pos += command.direction();
+    fn handle_output(&mut self, word: Word) -> io::Result<()> {
+        self.status = word.try_into().map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid status"))?;
+        Ok(())
     }
 }
 
@@ -340,6 +359,16 @@ enum Status {
     Wall,
     Moved,
     MovedAndFoundTarget,
+}
+
+impl Status {
+    fn is_movement(self) -> bool {
+        use Status::*;
+        match self {
+            Moved | MovedAndFoundTarget => true,
+            _ => false,
+        }
+    }
 }
 
 impl TryFrom<Word> for Status {

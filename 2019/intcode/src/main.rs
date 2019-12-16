@@ -1,5 +1,5 @@
 use std::{fs, env, process, io};
-use intcode::emulator::{Program, IntcodeEmulator, Exception, Word};
+use intcode::emulator::{Program, IntcodeEmulator, Exception};
 use std::io::BufRead;
 use std::collections::VecDeque;
 
@@ -64,7 +64,7 @@ Run Intcode PROGRAM in the interpreter.
 }
 
 fn run(program: &Program, debug: bool, break_at_start: bool, dump: bool) {
-    let mut cpu = IntcodeEmulator::new();
+    let mut cpu = IntcodeEmulator::default();
     cpu.load_program(&program);
     cpu.set_debug(debug);
 
@@ -75,22 +75,6 @@ fn run(program: &Program, debug: bool, break_at_start: bool, dump: bool) {
     loop {
         match cpu.run() {
             Exception::Halt => break,
-            Exception::Input => {
-                let input = match read_input() {
-                    Err(err) => {
-                        eprintln!("ERROR: {}", err);
-                        process::exit(1);
-                    },
-                    Ok(val) => val,
-                };
-
-                for val in input {
-                    cpu.add_input(val);
-                }
-            },
-            Exception::Output(out) => {
-                println!("{}", out);
-            },
             Exception::IllegalInstruction(opcode) => {
                 eprintln!("ERROR: Illegal instruction {}", opcode);
                 if debug {
@@ -113,24 +97,19 @@ fn run(program: &Program, debug: bool, break_at_start: bool, dump: bool) {
                 }
                 process::exit(11);
             },
+            Exception::IOError(err) => {
+                eprintln!("IO error: {}", err);
+                if debug {
+                    attach_debugger(&mut cpu);
+                }
+                process::exit(29);
+            }
         }
     }
 
     if dump {
         cpu.dump_memory();
     }
-}
-
-fn read_input() -> Result<Vec<Word>, String> {
-    let mut inbuf = String::new();
-    if io::stdin().read_line(&mut inbuf).map_err(|err| format!("Failed to read from stdin: {}", err))? == 0 {
-        return Err(String::from("stdin reached EOF"))
-    }
-    let input: Result<Vec<_>, _> = inbuf.trim().split_whitespace()
-        .map(|s| s.parse::<Word>().map_err(|err| format!("Could parse stdin: {}", err)))
-        .collect();
-
-    Ok(input?)
 }
 
 fn attach_debugger(cpu: &mut IntcodeEmulator) {
@@ -175,7 +154,7 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
             continue;
         }
 
-        if let Err(err) = match args[0] {
+        let result = match args[0] {
             "p" | "print" => print(&cpu, &args),
             "c" | "continue" => break,
             "j" | "jump" => {
@@ -187,17 +166,9 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
             "q" | "quit" => process::exit(0),
             "d" | "disassemble" => { cpu.print_disassembled(); Ok(()) },
             "s" | "step" => {
-                match cpu.step() {
-                    Err(Exception::Input) => read_input().map(|input| for val in input { cpu.add_input(val) }),
-                    Err(Exception::Output(val)) => {
-                        println!("{}", val);
-                        Ok(())
-                    },
-                    Err(except) => Err(except.to_string()),
-                    Ok(()) => Ok(()),
-                }.map(|_| cpu.print_disassembled())
+                cpu.step().map(|_| cpu.print_disassembled())
+                    .map_err(|e| e.to_string())
             },
-            "i" | "input" => read_param(&args,1).map(|input| cpu.add_input(input)),
             "D" | "dump" => { cpu.dump_memory(); Ok(()) },
             "h" | "help" => {
                 eprintln!("p|print [ ADDR | $ip | $rb ]");
@@ -212,7 +183,9 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
                 Ok(())
             },
             arg => Err(format!("ERROR: Unknown command '{}'", arg))
-        } {
+        };
+
+        if let Err(err) = result {
             eprintln!("ERROR: {}", err);
         };
     }

@@ -2,6 +2,8 @@ use intcode::emulator;
 use intcode::emulator::{Word, Program};
 use std::collections::{VecDeque, HashSet};
 use std::fmt;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 const BLACK: Word = 0;
 const WHITE: Word = 1;
@@ -15,42 +17,58 @@ fn main() {
     // Part 1
     println!("Part 1");
     println!("══════");
-    let mut map = Map::new(80, 90);
-    run(&program, &mut map, Pos::new(45, 75));
+    let map = run(&program, Pos::new(45, 75), (80, 90), false);
     println!("Number of panels painted at least once: {}", map.painted.len());
     println!();
 
     // Part 2
     println!("Part 2");
     println!("══════");
-    let start = Pos::new(1, 1);
-    let mut map = Map::new(80, 8);
-    map.paint(start, WHITE);
-    run(&program, &mut map, start);
-}
-
-fn run(program: &Program, map: &mut Map, pos: Pos) {
-    let mut cpu = emulator::IntcodeEmulator::new();
-    cpu.load_program(&program);
-
-    let mut robot = Robot::new(pos);
-
-    loop {
-        match cpu.run() {
-            emulator::Exception::Halt => break,
-            emulator::Exception::Input => {
-                cpu.add_input(robot.camera(map));
-            },
-            emulator::Exception::Output(word) => {
-                robot.handle_input(word, map);
-            },
-            exception => panic!("Unhandled exception: {}", exception),
-        }
-    }
-
+    let map = run(&program, Pos::new(1, 1), (80, 8), true);
     map.draw();
 }
 
+fn run(program: &Program, pos: Pos, map_size: (usize, usize), paint_white: bool) -> Map {
+    let map = Rc::new(RefCell::new(Map::new(map_size.0, map_size.1)));
+    let robot = Rc::new(RefCell::new(Robot::new(pos)));
+
+    if paint_white {
+        map.borrow_mut().paint(pos, WHITE);
+    }
+
+    {
+        let m = Rc::clone(&map);
+        let r = Rc::clone(&robot);
+        let input_handler = Box::new(move || {
+            let map = m.borrow();
+            let robot = r.borrow();
+
+            Ok(robot.camera(&map))
+        });
+
+        let m = Rc::clone(&map);
+        let r = Rc::clone(&robot);
+        let output_handler = Box::new(move |word| {
+            let mut map = m.borrow_mut();
+            let mut robot = r.borrow_mut();
+            robot.handle_input(word, &mut map);
+
+            Ok(())
+        });
+
+        let mut cpu = emulator::IntcodeEmulator::new(input_handler, output_handler);
+        cpu.load_program(&program);
+
+        let exception = cpu.run();
+        if !exception.is_halt() {
+            panic!("Unhandled exception: {}", exception);
+        }
+    }
+
+    Rc::try_unwrap(map).unwrap().into_inner()
+}
+
+#[derive(Debug)]
 struct Map {
     width: usize,
     height: usize,
@@ -161,7 +179,7 @@ impl Direction {
     }
 }
 
-#[derive(Hash, Eq, PartialEq, Copy, Clone)]
+#[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 struct Pos {
     pub x: usize,
     pub y: usize,
