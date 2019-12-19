@@ -8,8 +8,8 @@ use std::rc::Rc;
 const INVALID: Word = -1;
 const PULLED: Word = 1;
 
-// Starting distance to ensure beam dispersal
-const MIN_Y: Word = 10;
+// Starting must be at least height of the ship
+const MIN_Y: Word = HEIGHT - 1;
 
 // Size of Santa's ship
 const WIDTH: Word = 100;
@@ -60,8 +60,6 @@ fn fit(program: &Program, min_width: Word, min_height: Word) -> (Word, Word) {
 
     let mut top = 0;
     let mut left = 0;
-    let mut width = 0;  // Keeps track of the maximum beam width seen
-    let mut height = 0;  // Keeps track of the maximum beam height seen
     for y in MIN_Y.. {
 
         // Find the min-x side of the beam (moves right as y increases)
@@ -75,8 +73,7 @@ fn fit(program: &Program, min_width: Word, min_height: Word) -> (Word, Word) {
         // Check the height of the column above this position
         // If we've found a column > min_height all the following rows will be too!
         if top == 0 {
-            height += (0..=y-height).rev().take_while(|&y| scan(program, left, y) == PULLED).count() as Word;
-            if height < min_height {
+            if scan(program, left, y - (min_height - 1)) != PULLED {
                 // Not tall enough
                 continue;
             }
@@ -84,8 +81,7 @@ fn fit(program: &Program, min_width: Word, min_height: Word) -> (Word, Word) {
         top = y + 1 - min_width;
 
         // Check the width from the top of the column
-        width += (left+width..).take_while(|&x| scan(program, x, top) == PULLED).count() as Word;
-        if width < min_width {
+        if scan(program, left + min_width - 1, top) != PULLED {
             // Not wide enough
             continue;
         }
