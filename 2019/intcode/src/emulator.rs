@@ -1,5 +1,5 @@
 use std::convert::{TryInto, TryFrom};
-use std::{fmt, fs, io};
+use std::{fmt, fs, io, ops};
 use std::path::Path;
 use std::io::{Write, BufRead};
 
@@ -15,6 +15,7 @@ const MODE_RELATIVE: Word = 2;
 
 
 /// An Intcode program
+#[derive(Clone, Debug)]
 pub struct Program(Vec<Word>);
 
 impl Program {
@@ -35,6 +36,20 @@ impl Program {
             .collect();
 
         Ok(Program::new(&instructions?))
+    }
+}
+
+impl ops::Index<usize> for Program {
+    type Output = Word;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl ops::IndexMut<usize> for Program {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
     }
 }
 

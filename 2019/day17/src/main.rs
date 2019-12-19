@@ -1,17 +1,15 @@
-use intcode::emulator::{Program, IntcodeEmulator};
-use std::io;
+use intcode::emulator::{Program, IntcodeEmulator, Exception, Word};
+use std::{io, thread};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::time::Duration;
 
 type Pos = (usize, usize);
 
 const SPACE: char = '.';
 const SCAFFOLDING: char = '#';
-const ROBOT_UP: char = '^';
-const ROBOT_DOWN: char = 'v';
-const ROBOT_LEFT: char = '<';
-const ROBOT_RIGHT: char = '>';
+const FPS: u64 = 24;
 
 fn main() {
     let program = Program::from_file("input.txt").expect("Failed to read input");
@@ -23,6 +21,13 @@ fn main() {
     let calibration: usize = alignment_parameters(&intersections).into_iter().sum();
 
     println!("Part 1: Sum of alignment parameters: {}", calibration);
+
+    // Part 2
+    println!("Part 2:");
+    let mut robot = Robot::new(&program);
+    robot.set_active(true);
+    robot.run();
+
 }
 
 fn alignment_parameters(intersections: &[Pos]) -> Vec<usize> {
@@ -46,6 +51,94 @@ fn get_view(program: &Program) -> String {
     }
 
     Rc::try_unwrap(output).unwrap().into_inner()
+}
+
+struct Robot {
+    cpu: IntcodeEmulator,
+    program: Program,
+}
+
+impl Robot {
+    fn new(program: &Program) -> Self {
+        // Input handler for Robot program
+        let mut p: VecDeque<_> = [
+            //        1         2
+            //2345678901234567890
+            "A,B,B,A,C,B,C,C,B,A",  // Main
+            "R,10,R,8,L,10,L,10",  // A
+            "R,8,L,6,L,6",  // B
+            "L,10,R,10,L,6",  // C
+            "y",  // enable continuous video feed
+            "",  // EOF
+        ].join("\n").chars().collect();
+        let input_handler = Box::new(move || {
+            if let Some(c) = p.pop_front() {
+                print!("{}", c);  // Echo input
+                Ok(c as Word)
+            } else {
+                Err(io::Error::new(io::ErrorKind::BrokenPipe, "No more input"))
+            }
+        });
+
+        // Output handler
+        let mut line = String::new();
+        let mut last_line = String::new();
+        let output_handler = Box::new(move |word| {
+            // Check if in ASCII range
+            if (0..=127).contains(&word) {
+                let c: char = (word as u8).into();
+                line.push(c);
+
+                if c == '\n' {
+                    // Detect double newline
+                    if &last_line == "\n" {
+                        print!("\x1B[H");  // Move to home
+
+                        // Status?
+                        if line.chars().next().unwrap_or('\0').is_alphanumeric() {
+                            print!("\x1B[2J");  // Clear screen
+                        }
+
+                        thread::sleep(Duration::from_millis(1000 / FPS));
+                    }
+
+                    print!("{}", line);
+
+                    last_line = line.clone();
+                    line.clear();
+                }
+            } else {
+                print!("\x1B[1000H\x1B[K");  // Move to end and clear line
+                println!("STATUS: {}", word);
+            }
+
+            Ok(())
+        });
+
+        let cpu = IntcodeEmulator::new(input_handler, output_handler);
+
+        Robot { cpu, program: program.clone() }
+    }
+
+    fn set_active(&mut self, active: bool) {
+        self.program[0] = if active { 2 } else { 1 };
+    }
+
+    fn run(&mut self) {
+        print!("\x1B[2J");  // Clear screen
+        print!("\x1B[?25l");  // Hide cursor
+        print!("\x1B[H");  // Move to home
+
+        self.cpu.load_program(&self.program);
+
+        match self.cpu.run() {
+            Exception::Halt => (),
+            exception => panic!("Unhandled exception: {}", exception),
+        }
+
+        println!("END");
+        print!("\x1Bc");  // Reset the terminal
+    }
 }
 
 struct Map {
