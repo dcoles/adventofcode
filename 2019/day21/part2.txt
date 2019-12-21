@@ -1,0 +1,19 @@
+# Part 2
+# ======
+# Jump only if we need to
+NOT A J
+NOT B T
+OR J T
+NOT C J
+OR T J
+# ...as long as there's there's somewhere to land
+NOT D T
+NOT T T
+AND T J
+# ... but only if it won't screw us up later (no where to jump to or move)
+# (i.e. 'H and 'E => H or E)
+OR J T
+AND H T
+OR E T
+AND T J
+RUN

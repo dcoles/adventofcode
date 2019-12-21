@@ -1,5 +1,5 @@
 use std::{fs, env, process, io};
-use intcode::emulator::{Program, IntcodeEmulator, Exception};
+use intcode::emulator::{Program, IntcodeEmulator, Exception, AsciiIOHandler};
 use std::io::BufRead;
 use std::collections::VecDeque;
 
@@ -14,10 +14,11 @@ fn main() {
         Ok(program) => program,
     };
 
-    run(&program, args.debug, args.break_at_start, args.dump);
+    run(&program, args.ascii, args.debug, args.break_at_start, args.dump);
 }
 
 fn parse_args() -> Args {
+    let mut ascii = false;
     let mut debug = false;
     let mut break_at_start = false;
     let mut dump = false;
@@ -26,6 +27,7 @@ fn parse_args() -> Args {
     let args: Vec<_> = env::args().collect();
     for arg in &args[1..] {
         match arg.as_str() {
+            "-A" | "--ascii" => ascii = true,
             "-d" | "--debug" => debug = true,
             "-B" | "--break" => break_at_start = true,
             "-D" | "--dump" => dump = true,
@@ -51,20 +53,26 @@ fn parse_args() -> Args {
         process::exit(2)
     }
 
-    Args { debug, break_at_start, dump, program }
+    Args { ascii, debug, break_at_start, dump, program }
 }
 
 fn print_usage() {
     eprintln!("\
-USAGE: intcode [-d | --debug] [-B | --break] [-D | --dump] PROGRAM
+USAGE: intcode [-A | --ascii ] [-d | --debug] [-B | --break] [-D | --dump] PROGRAM
 Run Intcode PROGRAM in the interpreter.
 
+-A, --ascii    use ASCII input/output
 -d, --debug    enable debugging mode (traces execution and break into debugger on exceptions)
 -B, --break    immediately break into debugger")
 }
 
-fn run(program: &Program, debug: bool, break_at_start: bool, dump: bool) {
-    let mut cpu = IntcodeEmulator::default();
+fn run(program: &Program, ascii: bool, debug: bool, break_at_start: bool, dump: bool) {
+    let mut ascii_handler = AsciiIOHandler::new();
+    let mut cpu = if ascii {
+        IntcodeEmulator::new(ascii_handler.input_handler(), ascii_handler.output_handler())
+    } else {
+        IntcodeEmulator::default()
+    };
     cpu.load_program(&program);
     cpu.set_debug(debug);
 
@@ -234,6 +242,7 @@ fn print(cpu: &IntcodeEmulator, args: &[&str]) -> Result<(), String> {
 }
 
 struct Args {
+    ascii: bool,
     debug: bool,
     break_at_start: bool,
     dump: bool,

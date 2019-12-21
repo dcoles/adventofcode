@@ -2,6 +2,9 @@ use std::convert::{TryInto, TryFrom};
 use std::{fmt, fs, io, ops};
 use std::path::Path;
 use std::io::{Write, BufRead};
+use std::collections::VecDeque;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub type Word = i64;
 pub type InputHandler = dyn FnMut() -> io::Result<Word>;
@@ -320,7 +323,7 @@ impl Default for IntcodeEmulator {
     }
 }
 
-fn default_input_handler() -> io::Result<Word> {
+pub fn default_input_handler() -> io::Result<Word> {
     let mut inbuf = String::new();
     io::stdin().read_line(&mut inbuf)?;
     let input = inbuf.trim().parse::<Word>()
@@ -329,8 +332,47 @@ fn default_input_handler() -> io::Result<Word> {
     Ok(input)
 }
 
-fn default_output_handler(word: i64) -> io::Result<()> {
+pub fn default_output_handler(word: i64) -> io::Result<()> {
     writeln!(&mut io::stdout(), "{}", word)
+}
+
+pub struct AsciiIOHandler {
+    input_buffer: Rc<RefCell<VecDeque<Word>>>,
+}
+
+impl AsciiIOHandler {
+    pub fn new() -> Self {
+        AsciiIOHandler { input_buffer: Rc::new(RefCell::new(VecDeque::new())) }
+    }
+
+    pub fn input_handler(&mut self) -> Box<InputHandler> {
+        let input_buffer = Rc::clone(&self.input_buffer);
+
+        Box::new(move || {
+            let mut input_buffer = input_buffer.borrow_mut();
+            while input_buffer.is_empty() {
+                let mut line = String::new();
+                io::stdin().read_line(&mut line)?;
+                if !line.starts_with('#') {
+                    input_buffer.extend(line.chars().map(|c| c as Word));
+                }
+            }
+            input_buffer.pop_front().ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "No more input"))
+        })
+    }
+
+    pub fn output_handler(&self) -> Box<OutputHandler> {
+        Box::new(|word| {
+            if (0x00..=0x7F).contains(&word) {
+                let c = word as u8 as char;
+                print!("{}", c);
+            } else {
+                eprintln!("WARN: Non-ASCII output: {}", word);
+            }
+
+            Ok(())
+        })
+    }
 }
 
 /// Instruction

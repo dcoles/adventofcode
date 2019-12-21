@@ -1,0 +1,11 @@
+# Part 1
+# ======
+# Jump if gap immediately ahead and somewhere to land
+NOT A T
+AND D T
+OR T J
+# Jump if gap 3 spaces ahead and somewhere to land
+NOT C T
+AND D T
+OR T J
+WALK
