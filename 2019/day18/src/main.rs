@@ -1,60 +1,85 @@
 use std::path::Path;
 use std::fs;
-use std::collections::{HashMap, HashSet, BinaryHeap};
+use std::collections::{HashMap, HashSet, BinaryHeap, BTreeSet};
 
 type Pos = (usize, usize);
 
 const ENTRANCE: char = '@';
+const ENTRANCE1: char = '1';
+const ENTRANCE2: char = '2';
+const ENTRANCE3: char = '3';
+const ENTRANCE4: char = '4';
 const OPEN: char = '.';
 const WALL: char = '#';
 
 fn main() {
-    let map = Map::from_file("input.txt");
+    // Part 1
+    let map = Map::from_file("input1.txt");
     map.draw();
 
-    // Part 1
-    let (path, distance) = find_shortest_path(&map);
-    println!("Part 1: Shortest path that collects all the keys: {} (distance: {})", path, distance);
+    let (path, distance) = find_shortest_path(&map, &[ENTRANCE]);
+    println!("Part 1: Shortest path that collects all the keys: {:?} (distance: {})", path, distance);
+
+    // Part 2
+    let map = Map::from_file("input2.txt");
+    map.draw();
+
+    let (path, distance) = find_shortest_path(&map, &[ENTRANCE1, ENTRANCE2, ENTRANCE3, ENTRANCE4]);
+    println!("Part 2: Shortest path that collects all the keys: {:?} (distance: {})", path, distance);
 }
 
-fn find_shortest_path(map: &Map) -> (String, i32) {
+fn find_shortest_path(map: &Map, start: &[char]) -> (Vec<String>, i32) {
     let objects = map.find_objects();
     let map_keys: HashSet<_> = objects.keys().copied().filter(|&c| is_key(c)).collect();
 
-    let mut distance_cache: HashMap<(Pos, String), HashMap<char, usize>> = HashMap::new();
-    let mut edge: BinaryHeap<(i32, String)> = vec![(0, ENTRANCE.to_string())].into_iter().collect();
-    let mut cost_so_far: HashMap<(char, String), i32> = [((ENTRANCE, String::new()), 0)].iter().cloned().collect();
+    // Cache of (pos, keys) -> {obj -> distance}
+    let mut distance_cache: HashMap<(Pos, BTreeSet<char>), HashMap<char, usize>> = HashMap::new();
+
+    // Priority queue of (distance-so-far, [path])
+    let mut edge: BinaryHeap<(i32, Vec<String>)> = [
+        (0, start.iter().map(|c| c.to_string()).collect()),
+    ].iter().cloned().collect();
+
+    // Map of ([robot_tile], {keys}) -> distance
+    let mut dist_so_far: HashMap<(Vec<char>, BTreeSet<char>), i32> = [
+        ((start.iter().copied().collect(), BTreeSet::new()), 0),
+    ].iter().cloned().collect();
+
     while let Some((neg_dist, path)) = edge.pop() {
         let dist = -neg_dist;  // Make distance positive again
-        let key = path.chars().last().unwrap();
-        let keys: HashSet<_> = path.chars().skip(1).collect();
+        let key: Vec<_> = path.iter().map(|k| k.chars().last().unwrap()).collect();
+        let keys: BTreeSet<char> = path.iter().flat_map(|k| k.chars().skip(1)).collect();
 
+        // We're done if we have all the keys
         if keys.len() == map_keys.len() {
             return (path, dist);
         }
 
-        let mut s_keys: Vec<_> = keys.iter().copied().collect();
-        s_keys.sort();
-        let s_keys: String = s_keys.into_iter().collect();
-
-        let distances = distance_cache.entry((objects[&key], s_keys)).or_insert_with(|| map.find_distances(objects[&key], &keys));
-        let neighbours: HashSet<_> = distances.keys().copied().filter(|&o| is_key(o) && !path.contains(o)).collect();
+        // Get a mapping of key -> (robot-index, distance)
+        let mut distances: HashMap<char, (usize, i32)> = HashMap::new();
+        for (i, &k) in key.iter().enumerate() {
+            let pos = objects[&k];
+            distances.extend(distance_cache.entry((pos, keys.clone())).or_insert_with(|| map.find_distances(objects[&k], &keys)).iter().map(|(&k, &d)| (k, (i, d as i32))));
+        }
+        
+        let neighbours: HashSet<_> = distances.keys().copied().filter(|&o| is_key(o) && !path.iter().any(|p| p.contains(o))).collect();
         for &n in &neighbours {
-            let mut new_path = path.to_owned();
-            new_path.push(n);
+            let mut key = key.clone();
+            let mut keys = keys.clone();
+            keys.insert(n);
+            let i = distances[&n].0;
+            let new_dist = dist + (distances[&n].1 as i32);
 
-            let mut new_s_keys: Vec<_> = new_path.chars().collect();
-            new_s_keys.sort();
-            let new_s_keys: String = new_s_keys.into_iter().collect();
+            let mut path = path.clone();
+            path[i].push(n);
+            key[i] = n;
 
-            let new_cost = dist + (distances[&n] as i32);
-
-            let cur_cost_so_far = cost_so_far.get(&(n, new_s_keys.clone()));
-            if cur_cost_so_far.is_none() || new_cost < cur_cost_so_far.copied().unwrap() {
-                cost_so_far.insert((n, new_s_keys), new_cost);
+            let cur_dist = dist_so_far.get(&(key.clone(), keys.clone())).copied();
+            if cur_dist.is_none() || new_dist < cur_dist.unwrap() {
+                dist_so_far.insert((key, keys), new_dist);
 
                 // Use negative distance to make max-heap behave like a min-heap
-                edge.push((-new_cost, new_path));
+                edge.push((-new_dist, path));
             }
         }
     }
@@ -99,7 +124,7 @@ impl Map {
             .collect()
     }
 
-    fn find_distances(&self, from: Pos, keys: &HashSet<char>) -> HashMap<char, usize> {
+    fn find_distances(&self, from: Pos, keys: &BTreeSet<char>) -> HashMap<char, usize> {
         let mut distances = HashMap::new();
 
         // Do a simple BFS
@@ -124,7 +149,7 @@ impl Map {
         distances
     }
 
-    fn adjacent(&self, (x, y): Pos, keys: &HashSet<char>) -> Vec<Pos> {
+    fn adjacent(&self, (x, y): Pos, keys: &BTreeSet<char>) -> Vec<Pos> {
         let mut adjacent = Vec::new();
 
         let tile = self.at((x, y));
