@@ -1,74 +1,82 @@
 use std::{fs, iter};
 use std::path::Path;
 
-const BASE_PATTERN: [i32; 4] = [0, 1, 0, -1];
+const PATTERN: [i32; 4] = [0, 1, 0, -1];
 
 fn main() {
-    let input = read_input("input.txt");
+    let (signal, offset) = read_input("input.txt");
 
     // Part 1
-    println!("Part 1: After 100 phases, the first 8 digits are: {:?}", &n_phases(&input, 100)[..8]);
+    let mut signal1 = signal.clone();
+    for _ in 0..100 {
+        signal1 = phase(&signal1);
+    }
+    println!("Part 1: After 100 phases, the first 8 digits are: {:?}", &signal1[..8]);
+
+    // Part 2
+    let real_signal: Vec<i32> = signal.iter().copied().cycle().take(10_000 * signal.len()).collect();
+    println!("Part 2: The first 8 digits of the final output list are: {:?}", &fft(&real_signal, offset, 100)[..8]);
 }
 
-fn read_input<T: AsRef<Path>>(path: T) -> Vec<i32> {
+fn fft(input: &[i32], offset: usize, rounds: usize) -> Vec<i32> {
+    let remainder = input.len() - offset;
+
+    // This only works if all elements of the pattern at or after offset are 1
+    assert!(offset >= remainder);
+
+    let mut result: Vec<_> = input.iter().copied().skip(offset).collect();
+    for _ in 0..rounds {
+        // As each new element is the sum of current and following elements of the
+        // previous round, we can construct the result from the right.
+        // e.g.
+        // n0: [..., 5, 6, 7, 8]
+        // n1: [..., 5 + (6 + 7 + 8), 6 + (7 + 8), 7 + (8), 8] mod 10
+        //     [..., 6, 1, 7, 8]
+        for i in (0..result.len() - 1).rev() {
+            result[i] = (result[i] + result[i + 1]) % 10;
+        }
+    }
+
+    result
+}
+
+fn read_input<T: AsRef<Path>>(path: T) -> (Vec<i32>, usize) {
     let contents = fs::read_to_string(path).expect("Failed to read input");
-    signal_to_list(&contents)
+    let offset = contents[..7].parse().expect("Failed to parse message offset");
+
+    (digits(&contents), offset)
 }
 
-fn signal_to_list(s: &str) -> Vec<i32> {
+/// Convert a list of digits to a vector of integers.
+fn digits(s: &str) -> Vec<i32> {
     s.trim().chars().map(|c| c.to_digit(10).expect("Failed to parse digit") as i32).collect()
 }
 
-fn n_phases(input: &[i32], n: usize) -> Vec<i32> {
-    let mut signal = input.to_vec();
-    for _ in 0..n {
-        signal = phase(&signal);
-    }
-
-    signal
-}
-
+/// Calculate a single phase of the FFT.
 fn phase(input: &[i32]) -> Vec<i32> {
     (0..input.len()).map(|n| apply_pattern(input.iter().copied(), pattern(n + 1).skip(1))).collect()
 }
 
+/// Apply a pattern to an input list and return the resulting value.
 fn apply_pattern(input: impl IntoIterator<Item=i32>, pattern: impl IntoIterator<Item=i32>) -> i32 {
-    let n = input.into_iter().zip(pattern.into_iter()).map(|(a, b)| a * b).sum();
+    let n: i32 = input.into_iter().zip(pattern.into_iter()).map(|(a, b)| a * b).sum();
 
-    modulo(n, 10)
+    (n % 10).abs()
 }
 
+/// Generate a pattern with each element repeated `n`-times.
+/// e.g. If `n` = 2, `[0, 0, 1, 1, 0, 0, -1, -1]`
 fn pattern(n: usize) -> impl Iterator<Item=i32> {
-    iter::repeat(BASE_PATTERN[0]).take(n)
-        .chain(iter::repeat(BASE_PATTERN[1]).take(n))
-        .chain(iter::repeat(BASE_PATTERN[2]).take(n))
-        .chain(iter::repeat(BASE_PATTERN[3]).take(n))
+    iter::repeat(PATTERN[0]).take(n)
+        .chain(iter::repeat(PATTERN[1]).take(n))
+        .chain(iter::repeat(PATTERN[2]).take(n))
+        .chain(iter::repeat(PATTERN[3]).take(n))
         .cycle()
-}
-
-fn modulo(n: i32, m: i32) -> i32 {
-    let x = n % m;
-    if x < 0 {
-        -x
-    } else {
-        x
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_mod() {
-        assert_eq!(modulo(38, 10), 8);
-    }
-
-    #[test]
-    fn test_mod_negative() {
-        assert_eq!(modulo(-17, 10), 7);
-        assert_eq!(modulo(-34, 10), 4);
-    }
 
     #[test]
     fn test_pattern() {
@@ -82,16 +90,16 @@ mod tests {
 
     #[test]
     fn test_signal1() {
-        let signal = phase(&signal_to_list("12345678"));
-        assert_eq!(signal, signal_to_list("48226158"));
+        let signal = phase(&digits("12345678"));
+        assert_eq!(signal, digits("48226158"));
 
         let signal = phase(&signal);
-        assert_eq!(signal, signal_to_list("34040438"));
+        assert_eq!(signal, digits("34040438"));
 
         let signal = phase(&signal);
-        assert_eq!(signal, signal_to_list("03415518"));
+        assert_eq!(signal, digits("03415518"));
 
         let signal = phase(&signal);
-        assert_eq!(signal, signal_to_list("01029498"));
+        assert_eq!(signal, digits("01029498"));
     }
 }
