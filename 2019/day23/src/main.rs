@@ -29,38 +29,43 @@ struct Computer {
     address: usize,
     cpu: IntcodeEmulator,
     input_queue: Rc<RefCell<VecDeque<Word>>>,
-    receiving: Rc<Cell<bool>>
+    idle: Rc<Cell<bool>>
 }
 
 impl Computer {
     fn new(address: usize, program: &Program, network_queue: Rc<RefCell<VecDeque<Packet>>>) -> Self {
         let input_queue = Rc::new(RefCell::new(VecDeque::new()));
         input_queue.borrow_mut().push_back(address as Word);
-        let receiving = Rc::new(Cell::new(false));
+        let idle = Rc::new(Cell::new(false));
 
-        let receiving_ = Rc::clone(&receiving);
+        let idle_ = Rc::clone(&idle);
         let input_queue_ = Rc::clone(&input_queue);
+        let mut last_input = -1;
         let input_handler = Box::new(move || {
-            receiving_.set(true);
             if let Some(input) = input_queue_.borrow_mut().pop_front() {
-                //println!("{:02X}: READ {}", address, input);
+                println!("@{}: READ {}", address, input);
+                last_input = input;
+
                 Ok(input)
             } else {
-                //println!("{:02X}: ENOINPUT (-1)", address);
+                println!("@{}: ENOINPUT (-1)", address);
+                if last_input == -1 {
+                    idle_.set(true);
+                }
+                last_input = -1;
+
                 Ok(-1)
             }
         });
 
-        let receiving_ = Rc::clone(&receiving);
         let mut output_buffer = Vec::new();
         let output_handler = Box::new(move |word| {
-            receiving_.set(false);
-            //println!("{:02X}: WRITE {}", address, word);
+            println!("@{}: WRITE {}", address, word);
             output_buffer.push(word);
 
             if output_buffer.len() == 3 {
                 let addr = output_buffer[0] as usize;
-                let packet = Packet::new(addr, &output_buffer[1..]);
+                let packet = Packet::new(address, addr, &output_buffer[1..]);
                 network_queue.borrow_mut().push_back(packet);
                 output_buffer.clear();
             }
@@ -70,7 +75,7 @@ impl Computer {
 
         let mut cpu = IntcodeEmulator::new(input_handler, output_handler);
         cpu.load_program(&program);
-        Computer { address, cpu, input_queue, receiving }
+        Computer { address, cpu, input_queue, idle }
     }
 
     fn receive_packet(&mut self, packet: Packet) {
@@ -80,11 +85,12 @@ impl Computer {
     }
 
     fn queue_input(&mut self, input: Word) {
+        self.idle.set(false);
         self.input_queue.borrow_mut().push_back(input);
     }
 
     fn is_idle(&self) -> bool {
-        self.input_queue.borrow().is_empty() && self.receiving.get()
+        self.idle.get()
     }
 
     fn step(&mut self) {
@@ -92,7 +98,7 @@ impl Computer {
         match self.cpu.step() {
             Err(Exception::Halt) | Ok(_) => (),
             Err(exception) => {
-                eprintln!("{:02X} CPU PANIC!!!", self.address);
+                eprintln!("@{} CPU PANIC!!!", self.address);
                 self.cpu.dump_registers();
                 self.cpu.print_disassembled();
                 self.cpu.dump_memory();
@@ -124,33 +130,30 @@ impl Network {
         loop {
             // Route packets
             while let Some(packet) = self.queue.borrow_mut().pop_front() {
-                //println!("NET: Routing packet to {:02X} (payload: {:?})", packet.address, packet.payload);
-                if packet.address == ADDR_NAT {
+                println!("NET: Routing packet from @{} to @{} (payload: {:?})", packet.source, packet.destination, packet.payload);
+                if packet.destination == ADDR_NAT {
                     // Handled by the NAT
-                    //println!("NET: Got NAT packet (payload: {:?})", packet.payload);
                     if self.first_nat_packet.is_none() {
                         self.first_nat_packet = Some(packet.clone());
                     }
                     self.nat = Some(packet);
                 } else {
                     // Send to computer
-                    if let Some(computer) = self.computers.get_mut(&packet.address) {
+                    if let Some(computer) = self.computers.get_mut(&packet.destination) {
                         computer.receive_packet(packet);
                     }
                 }
             }
 
             // Step computers
-            for (_, computer) in &mut self.computers {
-                computer.step()
-            }
-
-            // Handle idle state
-            if self.computers.values().all(|c| c.is_idle()) {
-                //println!("NET: Network idle...");
+            let mut active_computers: Vec<_> = self.computers.values_mut().filter(|c| !c.is_idle()).collect();
+            active_computers.sort_by_key(|c| c.address);
+            if active_computers.is_empty() {
+                // Handle idle state
+                println!("NET: Network idle...");
                 if let Some(mut packet) = self.nat.take() {
-                    packet.address = ADDR_ZERO;
-                    //println!("NET: Releasing packet to {:02X} (payload: {:?})", packet.address, packet.payload);
+                    packet.destination = ADDR_ZERO;
+                    //println!("NET: Releasing packet to @{} (payload: {:?})", packet.address, packet.payload);
                     if packet.payload[1] == last_nat_y {
                         // Found first Y delivered twice in a row
                         self.nat = Some(packet);  // Requeue for solution
@@ -158,11 +161,19 @@ impl Network {
                     }
                     last_nat_y = packet.payload[1];
 
-                    if let Some(computer) = self.computers.get_mut(&packet.address) {
+                    if let Some(computer) = self.computers.get_mut(&packet.destination) {
                         computer.receive_packet(packet);
+                        assert_eq!(computer.is_idle(), false);
                     }
 
                     self.nat = None;
+                }
+            } else {
+                // Run active computers
+                for computer in active_computers {
+                    while !computer.is_idle() {
+                        computer.step()
+                    }
                 }
             }
         }
@@ -171,12 +182,13 @@ impl Network {
 
 #[derive(Clone, Debug)]
 struct Packet {
-    address: usize,
+    source: usize,
+    destination: usize,
     payload: Vec<Word>
 }
 
 impl Packet {
-    fn new(address: usize, payload: &[Word]) -> Self {
-        Packet { address, payload: payload.to_vec() }
+    fn new(source: usize, destination: usize, payload: &[Word]) -> Self {
+        Packet { source, destination, payload: payload.to_vec() }
     }
 }
