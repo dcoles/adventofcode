@@ -1,21 +1,22 @@
 use std::fs;
 use std::path::Path;
-use std::collections::{HashSet, BTreeMap};
+use std::collections::{HashSet, BTreeSet};
 
-type Pos = (usize, usize);
-type Map = BTreeMap<Pos, char>;
+type Pos = (i32, usize, usize);
 
 const WIDTH: usize = 5;
 const HEIGHT: usize = 5;
-const BUGS: char = '#';
+const LEVEL_ZERO: i32 = 0;
+const BUG: char = '#';
 const EMPTY: char = '.';
 
 fn main() {
-    let map = read_input("input.txt");
-    draw(&map);
+    let map = Map::from_file("input.txt");
+    map.draw();
 
     // Part 1
     let first_repeat = simulate(&map);
+    first_repeat.draw();
     println!("Part 1: Biodiversity rating: {}", biodiversity_rating(&first_repeat));
 }
 
@@ -23,19 +24,22 @@ fn simulate(map: &Map) -> Map {
     let mut map = map.clone();
     let mut seen = HashSet::new();
 
-    while !seen.contains(&map) {
-        seen.insert(map.clone());
+    while !seen.contains(&map.bugs) {
+        seen.insert(map.bugs.clone());
         let mut new_map = map.clone();
-        for (&pos, &tile) in map.iter() {
-            let adjacent_bugs = n_adjacent_bugs(pos, &map);
-            if tile == BUGS && adjacent_bugs != 1 {
-                // A bug dies (becoming an empty space) unless
-                // there is exactly one bug adjacent to it.
-                new_map.insert(pos, EMPTY);
-            } else if (1..=2).contains(&adjacent_bugs) {
-                // An empty space becomes infested with a bug if
-                // exactly one or two bugs are adjacent to it.
-                new_map.insert(pos, BUGS);
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                let pos = (0, x, y);
+                let adjacent_bugs = map.number_of_adjacent_bugs(pos);
+                if map.is_bug_at(pos) && adjacent_bugs != 1 {
+                    // A bug dies (becoming an empty space) unless
+                    // there is exactly one bug adjacent to it.
+                    new_map.kill(pos);
+                } else if adjacent_bugs == 1 || adjacent_bugs == 2 {
+                    // An empty space becomes infested with a bug if
+                    // exactly one or two bugs are adjacent to it.
+                    new_map.infest(pos);
+                }
             }
         }
         map = new_map;
@@ -47,9 +51,10 @@ fn simulate(map: &Map) -> Map {
 fn biodiversity_rating(map: &Map) -> u32 {
     let mut rating = 0;
     let mut p = 1;
-    for y in 0..WIDTH {
-        for x in 0..HEIGHT {
-            if map[&(x, y)] == BUGS {
+    for y in 0..HEIGHT {
+        for x in 0..WIDTH {
+            let pos = (0, x, y);
+            if map.is_bug_at(pos) {
                 rating += p;
             }
             p <<= 1;
@@ -59,37 +64,62 @@ fn biodiversity_rating(map: &Map) -> u32 {
     rating
 }
 
-fn draw(map: &Map) {
-    for y in 0..WIDTH {
-        for x in 0..HEIGHT {
-            let c = map[&(x, y)];
-            print!("{}", c);
+
+#[derive(Clone, Debug)]
+struct Map {
+    bugs: BTreeSet<Pos>,
+}
+
+impl Map {
+    fn from_file<T: AsRef<Path>>(path: T) -> Self {
+        let contents = fs::read_to_string(path).expect("Failed to read input");
+
+        let mut bugs = BTreeSet::new();
+        for (y, line) in contents.lines().enumerate() {
+            for (x, c) in line.chars().enumerate() {
+                if c == BUG {
+                    bugs.insert((LEVEL_ZERO, x, y));
+                }
+            }
+        }
+
+        Map { bugs }
+    }
+
+    fn infest(&mut self, pos: Pos) {
+        self.bugs.insert(pos);
+    }
+
+    fn kill(&mut self, pos: Pos) {
+        self.bugs.remove(&pos);
+    }
+
+    fn total_number_of_bugs(&self) -> usize {
+        self.bugs.len()
+    }
+
+    fn number_of_adjacent_bugs(&self, (d, x, y): Pos) -> usize {
+        let mut n = 0;
+
+        if x > 0 && self.is_bug_at((d, x - 1, y)) { n += 1 };
+        if self.is_bug_at((d, x + 1, y)) { n += 1 };
+        if y > 0 && self.is_bug_at((d, x, y - 1)) { n += 1 };
+        if self.is_bug_at((d, x, y + 1)) { n += 1 };
+
+        n
+    }
+
+    fn is_bug_at(&self, pos: Pos) -> bool {
+        self.bugs.contains(&pos)
+    }
+
+    fn draw(&self) {
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                print!("{}", if self.is_bug_at((0, x, y)) { BUG } else { EMPTY });
+            }
+            println!();
         }
         println!();
     }
-    println!();
-}
-
-fn read_input<T: AsRef<Path>>(path: T) -> Map {
-    let contents = fs::read_to_string(path).expect("Failed to read input");
-
-    let mut map = BTreeMap::new();
-    for (y, line) in contents.lines().enumerate() {
-        for (x, c) in line.chars().enumerate() {
-            map.insert((x, y), c);
-        }
-    }
-
-    map
-}
-
-fn n_adjacent_bugs((x, y): Pos, map: &Map) -> usize {
-    let mut n = 0;
-
-    if x > 0 && *map.get(&(x - 1, y)).unwrap_or(&EMPTY) == BUGS { n += 1 };
-    if *map.get(&(x + 1, y)).unwrap_or(&EMPTY) == BUGS { n += 1 };
-    if y > 0 && *map.get(&(x, y - 1)).unwrap_or(&EMPTY) == BUGS { n += 1 };
-    if *map.get(&(x, y + 1)).unwrap_or(&EMPTY) == BUGS { n += 1 };
-
-    n
 }
