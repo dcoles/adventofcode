@@ -1,10 +1,9 @@
 use std::path::Path;
 use std::fs;
-use std::convert::TryFrom;
 
 type Signed = i128;
 type Unsigned = u128;
-type Vector2 = [Unsigned; 2];
+type Vector2<T> = [T; 2];
 
 const DEAL_NEW_STACK: &str = "deal into new stack";
 const CUT: &str = "cut ";
@@ -58,42 +57,40 @@ fn read_input<T: AsRef<Path>>(path: T) -> Vec<Technique> {
 }
 
 /// Represents a shuffle as a linear equation `v`, modulo `n_cards`
-/// Formula: `ax + b`; where `v = [a, b]`
+/// Formula: `ax + b (mod m)`; where `v = [a, b]`
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 struct Shuffle {
-    v: [Unsigned; 2],
-    n_cards: Unsigned,
+    v: Vector2<Mod>,
 }
 
 impl Shuffle {
     fn from_techniques(techniques: &[Technique], n_cards: Unsigned) -> Self {
-        // Since we're trying to find card `X` at position `x`,
+        // Since we're trying to find card `Cx` at position `x`,
         // we need to follow it backwards through the shuffling techniques
-        let mut v = [1, 0];
+        let mut v = [Mod::new(1, n_cards), Mod::new(0, n_cards)];
         for n in (0..techniques.len()).rev() {
             let technique = techniques[n];
 
             use Technique::*;
             match technique {
                 DealNewStack => {
-                    v = Shuffle::undeal_new_stack(v, n_cards);
+                    v = Shuffle::undeal_new_stack(v);
                 },
                 Cut(n) => {
-                    v = Shuffle::uncut(n, v, n_cards);
+                    v = Shuffle::uncut(n, v);
                 },
                 DealWithIncrement(n) => {
-                    v = Shuffle::undeal_with_increment(n, v, n_cards);
+                    v = Shuffle::undeal_with_increment(n, v);
                 },
             }
         }
-
-        Shuffle { v, n_cards }
+        Shuffle { v }
     }
 
     /// Find the card at `pos`, given a `shuffle`
     fn evaluate(&self, pos: Unsigned) -> Unsigned {
-        // Formula: ax + b;  where v = [a, b]
-        (self.v[0] * pos + self.v[1]) % self.n_cards
+        // Formula: ax + b (mod m);  where v = [a, b]
+        (self.v[0] * pos + self.v[1]).into()
     }
 
     /// Repeat thus shuffle `n` times
@@ -121,27 +118,26 @@ impl Shuffle {
 
     /// Apply this shuffle to `other` shuffle`
     fn apply(&self, other: Shuffle) -> Shuffle {
-        assert_eq!(other.n_cards, self.n_cards, "Number of cards must be equal");
         // Substitute `x = cx + d` into `ax + b` => `a(cx + d) + b = acx + ad + b`
         let [a, b] = self.v;
         let [c, d] = other.v;
-        let v = [(a * c) % self.n_cards, (a * d + b) % self.n_cards];
+        let v = [a * c, a * d + b];
 
-        Shuffle { v, n_cards: self.n_cards }
+        Shuffle { v }
     }
 
     /// Undo cut
-    fn uncut(n: Signed, [a, b]: Vector2, n_cards: Unsigned) -> Vector2 {
+    fn uncut(n: Signed, [a, b]: Vector2<Mod>) -> Vector2<Mod> {
         // i: 0  1  2  3  4  5  6  7  8  9
         // | c1 c2 c3 c4 c5 c6 c7*c8 c9 c0 |  Cut 1
         // | c0 c1 c2 c3 c4 c5 c6 c7*c8 c9 |
         //
-        // Formula: x + n mod m
-        [modulo(a, n_cards), modulo(b as Signed + n as Signed, n_cards)]
+        // Formula: x + n (mod m)
+        [a, b + n]
     }
 
     /// Undo deal with increment
-    fn undeal_with_increment(n: Unsigned, [a, b]: Vector2, n_cards: Unsigned) -> Vector2 {
+    fn undeal_with_increment(n: Unsigned, [a, b]: Vector2<Mod>) -> Vector2<Mod> {
         // i: 0  1  2  3  4  5  6  7  8  9
         // | c0 c7*c4 c1 c8 c5 c2 c9 c6 c3 |  Deal with increment 3
         // | c0 c1 c2 c3 c4 c5 c6 c7*c8 c9 |
@@ -149,59 +145,130 @@ impl Shuffle {
         // This requires us to find the modular multiplicative inverse
         // Note: These multiplications may result in some *very* big numbers
         //
-        // Formula: n⁻¹x mod m
-        let ninv = inverse(n, n_cards);
-        [modulo(ninv * a, n_cards), modulo(ninv * b, n_cards)]
+        // Formula: n⁻¹x (mod m)
+        let n = Mod::new(n, a.m);
+        let ninv = n.inverse();
+        [ninv * a, ninv * b]
     }
 
     /// Undo deal new stack
-    fn undeal_new_stack([a, b]: Vector2, n_cards: Unsigned) -> Vector2 {
+    fn undeal_new_stack([a, b]: Vector2<Mod>) -> Vector2<Mod> {
         // i: 0  1  2  3  4  5  6  7  8  9
         // | c9 c8 c7*c6 c5 c4 c3 c2 c1 c0 |  Deal new stack
         // | c0 c1 c2 c3 c4 c5 c6 c7*c8 c9 |
         //
-        // Formula: -(x + 1) mod m
-        [modulo(-(a as Signed), n_cards), modulo(-(b as Signed) - 1, n_cards)]
+        // Formula: -(x + 1) (mod m)
+        [-a, -(b + 1u128)]
+    }
+}
+
+/// Modular arithmetic
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+struct Mod {
+    a: Unsigned,
+    m: Unsigned,
+}
+
+impl Mod {
+    /// New `a (mod m)`
+    fn new(a: Unsigned, m: Unsigned) -> Self {
+        Mod { a: a % m, m }
+    }
+
+    /// Multiplicative inverse via extended Euclidean algorithm
+    /// see: https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm#Modular_integers
+    fn inverse(self) -> Mod {
+        assert_ne!(self.a, 0, "Zero has no multiplicative inverse");
+
+        let mut a = self.a as Signed;
+        let mut m = self.m as Signed;
+        let mut y = 0;
+        let mut x = 1;
+
+        while a > 1 {
+            let q = a / m;
+
+            let t = m;
+
+            m = a % m;
+            a = t;
+            let t = y;
+
+            y = x - q * y;
+            x = t;
+        }
+
+        Mod { a: modulo(x, self.m), m: self.m }
+    }
+}
+
+impl std::ops::Add<Mod> for Mod {
+    type Output = Mod;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        assert_eq!(self.m, rhs.m, "Must have same modulus");
+        Mod { a: (self.a + rhs.a) % self.m, m: self.m }
+    }
+}
+
+impl std::ops::Add<Unsigned> for Mod {
+    type Output = Mod;
+
+    fn add(self, rhs: Unsigned) -> Self::Output {
+        Mod { a: (self.a + rhs) % self.m, m: self.m }
+    }
+}
+
+impl std::ops::Add<Signed> for Mod {
+    type Output = Mod;
+
+    fn add(self, rhs: Signed) -> Self::Output {
+        Mod { a: modulo(self.a as Signed + rhs, self.m), m: self.m }
+    }
+}
+
+impl std::ops::Mul<Mod> for Mod {
+    type Output = Mod;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        assert_eq!(self.m, rhs.m, "Must have same modulus");
+        Mod { a: (self.a * rhs.a) % self.m, m: self.m }
+    }
+}
+
+impl std::ops::Mul<Unsigned> for Mod {
+    type Output = Mod;
+
+    fn mul(self, rhs: Unsigned) -> Self::Output {
+        Mod { a: (self.a * rhs) % self.m, m: self.m }
+    }
+}
+
+impl std::ops::Neg for Mod {
+    type Output = Mod;
+
+    fn neg(self) -> Self::Output {
+        Mod { a: modulo(-(self.a as Signed), self.m), m: self.m }
+    }
+}
+
+impl Into<Signed> for Mod {
+    fn into(self) -> Signed {
+        self.a as Signed
+    }
+}
+
+impl Into<Unsigned> for Mod {
+    fn into(self) -> Unsigned {
+        self.a
     }
 }
 
 /// Calculate `x mod m`
-/// (In Rust `%` is the `rem` operator, so behaves differently on negative numbers`)
-fn modulo<T>(x: T, m: Unsigned) -> Unsigned
-    where T: std::ops::Add<Output=T> + Copy + Clone,
-          T: std::convert::TryFrom<Unsigned>,
-          <T as std::convert::TryFrom<Unsigned>>::Error: std::fmt::Debug,
-          Unsigned: std::convert::TryFrom<T>,
-          <Unsigned as std::convert::TryFrom<T>>::Error: std::fmt::Debug
-{
-    Unsigned::try_from(T::try_from(m).unwrap() + x).unwrap() % m
+/// The `%` operator in Rust is remainder, thus behaves differently on negative numbers
+fn modulo(a: Signed, m: Unsigned) -> Unsigned {
+    (m as Signed + a % m as Signed) as Unsigned % m
 }
-
-/// Inverse via extended Euclidean algorithm
-/// see: https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm#Modular_integers
-fn inverse(a: Unsigned, m: Unsigned) -> Unsigned {
-    let m0 = m;
-    let mut a = a as Signed;
-    let mut m = m as Signed;
-    let mut y = 0;
-    let mut x = 1;
-
-    while a > 1 {
-        let q = a / m;
-
-        let t = m;
-
-        m = a % m;
-        a = t;
-        let t = y;
-
-        y = x - q * y;
-        x = t;
-    }
-
-    (m0 as Signed + x) as Unsigned % m0
-}
-
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum Technique {
@@ -321,16 +388,19 @@ mod tests {
 
     #[test]
     fn test_identities() {
-        let n_cards = 10;
-        for i in 0..10 {
+        let n_cards = 10u128;
+        for i in 0..n_cards {
             // Cut n
-            assert_eq!((i + 7) % n_cards, Shuffle::from_techniques(&[Cut(7)], n_cards).evaluate(i));
+            let val: Unsigned = (Mod::new(7, n_cards) + i).into();
+            assert_eq!(val, Shuffle::from_techniques(&[Cut(7)], n_cards).evaluate(i));
 
             // DealWithIncrement m
-            assert_eq!((inverse(7, n_cards) * i) % n_cards, Shuffle::from_techniques(&[DealWithIncrement(7)], n_cards).evaluate(i));
+            let val: Unsigned = (Mod::new(7, n_cards).inverse() * i).into();
+            assert_eq!(val, Shuffle::from_techniques(&[DealWithIncrement(7)], n_cards).evaluate(i));
 
             // DealNewStack
-            assert_eq!((n_cards - i - 1) % n_cards, Shuffle::from_techniques(&[DealNewStack], n_cards).evaluate(i));
+            let val: Unsigned = (-(Mod::new(1, n_cards) + i)).into();
+            assert_eq!(val, Shuffle::from_techniques(&[DealNewStack], n_cards).evaluate(i));
         }
     }
 
