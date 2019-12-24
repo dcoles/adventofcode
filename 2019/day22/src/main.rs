@@ -18,7 +18,7 @@ fn main() {
     // Part 1
     let pos = 2019;
     for c in 0..M_CARDS {
-        if Shuffle::from_techniques(&techniques, N_CARDS).evaluate(c) == 2019 {
+        if Shuffle::from_techniques(&techniques, N_CARDS).evaluate(c) == pos {
             println!("Part 1: Position of card {}: {}", pos, c);
             break;
         }
