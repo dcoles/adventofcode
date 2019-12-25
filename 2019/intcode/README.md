@@ -3,9 +3,10 @@
 ## Usage
 
 ```
-USAGE: intcode [-d | --debug] [-B | --break] PROGRAM
+USAGE: intcode [-A | --ascii] [-d | --debug] [-B | --break] PROGRAM
 Run Intcode PROGRAM in the interpreter.
 
+-A, --ascii    use ASCII input/output
 -d, --debug    enable debugging mode (traces execution and break into debugger on exceptions)
 -B, --break    immediately break into debugger
 ```
@@ -45,7 +46,6 @@ c|continue      Continue execution
 q|quit          Exit debugger and terminate program
 d|disassemble   Disassemble current instruction
 s|step          Step to the next instruction
-i|input         Write input to the CPU
 D|dump          Dump memory to console
 h|help          Print this help
 ```
