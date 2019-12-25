@@ -189,10 +189,12 @@ fn attach_debugger(cpu: &mut IntcodeEmulator) {
                 eprintln!("p|print [ ADDR | $ip | $rb ]");
                 eprintln!("                Print contents of address");
                 eprintln!("c|continue      Continue execution");
+                eprintln!("j|jump          Jump to address");
+                eprintln!("c|continue      Continue execution");
+                eprintln!("r|relbase       Set the relative base register");
                 eprintln!("q|quit          Exit debugger and terminate program");
                 eprintln!("d|disassemble   Disassemble current instruction");
                 eprintln!("s|step          Step to the next instruction");
-                eprintln!("i|input         Write input to the CPU");
                 eprintln!("D|dump          Dump memory to console");
                 eprintln!("h|help          Print this help");
                 Ok(())
