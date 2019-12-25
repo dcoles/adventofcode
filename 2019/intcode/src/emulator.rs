@@ -11,7 +11,7 @@ pub type Word = i64;
 pub type InputHandler = dyn FnMut(&mut Context) -> io::Result<Word>;
 pub type OutputHandler = dyn FnMut(&mut Context, Word) -> io::Result<()>;
 
-pub const MEMSIZE: usize = 2 << 11;  // 4 KiB
+pub const MEMSIZE: usize = 1 << 15;  // 32 KiB
 
 const MODE_POSITION: Word = 0;
 const MODE_IMMEDIATE: Word = 1;

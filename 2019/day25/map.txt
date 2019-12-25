@@ -1,0 +1,34 @@
+Map:
+
+     [🔬]
+      ||
+[📽️]=[🔭] [☕]=[HH]=[🍽️]
+      ||        ||
+     [CC]======[🎁]=[👾]=[PP]=[🗺️]
+      ||                  ||
+     [💥]=[📦]=[🧝] [💊]=[🛠️]=[🌀]
+      ||             ||          
+     [🦌]      [🎅]=[👮]
+
+
+Key:
+- 💥: Hull breach
+- 🦌: Stables (fixed point)
+- 📦: Storage 
+- 🧝: Crew Quarters
+- CC: Coridor (spool of cat6)
+- 🔭: Observatory (monolith)
+- 🔬: Science Lab (hypercube)
+- 📽️: Holodeck (planetoid)
+- 🎁: Gift wrapping
+- HH: Hallway (candy cane)
+- ☕: Hot Chocolate Fountain ([!] photons)
+- 🍽️: Kitchen ([!] giant electromagnet)
+- 👾: Arcade (easter egg)
+- PP: Passages (escape pod)
+- 🗺️: Navigation ([!] molten lava)
+- 🛠️: Engineering (ornament)
+- 🌀: Warp Drive Maintenance ([!] infinite loop)
+- 💊: Sick Bay
+- 👮: Security Checkpoint
+- 🎅: Santa
