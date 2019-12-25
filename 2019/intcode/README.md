@@ -46,6 +46,7 @@ c|continue      Continue execution
 q|quit          Exit debugger and terminate program
 d|disassemble   Disassemble current instruction
 s|step          Step to the next instruction
+i|input         Write input to the CPU
 D|dump          Dump memory to console
 h|help          Print this help
 ```
