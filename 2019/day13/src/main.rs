@@ -1,4 +1,4 @@
-use intcode::emulator::{Program, IntcodeEmulator, Exception, Word};
+use intcode::emulator::{Program, IntcodeEmulator, Word};
 use std::collections::{VecDeque};
 use std::{fmt, cmp, time, thread, env, io};
 use std::io::Write;
@@ -70,9 +70,9 @@ impl ArcadeCabinet {
 
         self.cpu.load_program(program);
         let state = Rc::clone(&self.state);
-        self.cpu.set_input_handler(Box::new(move || state.borrow_mut().handle_input()));
+        self.cpu.set_input_handler(Box::new(move |_| state.borrow_mut().handle_input()));
         let state = Rc::clone(&self.state);
-        self.cpu.set_output_handler(Box::new(move |word| state.borrow_mut().handle_output(word)));
+        self.cpu.set_output_handler(Box::new(move |_, word| state.borrow_mut().handle_output(word)));
 
         if self.freeplay {
             self.cpu.mem_mut()[0] = 2;
@@ -80,8 +80,8 @@ impl ArcadeCabinet {
 
         loop {
             match self.cpu.run() {
-                Exception::Halt => break,
-                exception => {
+                Ok(()) => break,
+                Err(exception) => {
                     self.cpu.dump_registers();
                     self.cpu.print_disassembled();
                     self.cpu.dump_memory();

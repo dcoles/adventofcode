@@ -1,4 +1,4 @@
-use intcode::emulator::{Program, IntcodeEmulator, Exception, Word};
+use intcode::emulator::{Program, IntcodeEmulator, Word, Context};
 use std::{io, thread};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -38,8 +38,8 @@ fn get_view(program: &Program) -> String {
     let output = Rc::new(RefCell::new(String::new()));
     {
         let output = Rc::clone(&output);
-        let input_handler = Box::new(|| Err(io::Error::new(io::ErrorKind::BrokenPipe, "No input")));
-        let output_handler = Box::new(move |word| {
+        let input_handler = Box::new(|_: &mut Context| Err(io::Error::new(io::ErrorKind::BrokenPipe, "No input")));
+        let output_handler = Box::new(move |_: &mut Context, word| {
             let c: char = (word as u8).into();
             output.borrow_mut().push(c);
 
@@ -47,7 +47,7 @@ fn get_view(program: &Program) -> String {
         });
         let mut cpu = IntcodeEmulator::new(input_handler, output_handler);
         cpu.load_program(&program);
-        cpu.run();
+        cpu.run().expect("Failed to run program");
     }
 
     Rc::try_unwrap(output).unwrap().into_inner()
@@ -71,7 +71,7 @@ impl Robot {
             "y",  // enable continuous video feed
             "",  // EOF
         ].join("\n").chars().collect();
-        let input_handler = Box::new(move || {
+        let input_handler = Box::new(move |_: &mut Context| {
             if let Some(c) = p.pop_front() {
                 print!("{}", c);  // Echo input
                 Ok(c as Word)
@@ -83,7 +83,7 @@ impl Robot {
         // Output handler
         let mut line = String::new();
         let mut last_line = String::new();
-        let output_handler = Box::new(move |word| {
+        let output_handler = Box::new(move |_: &mut Context, word| {
             // Check if in ASCII range
             if (0..=127).contains(&word) {
                 let c: char = (word as u8).into();
@@ -132,8 +132,8 @@ impl Robot {
         self.cpu.load_program(&self.program);
 
         match self.cpu.run() {
-            Exception::Halt => (),
-            exception => panic!("Unhandled exception: {}", exception),
+            Ok(()) => (),
+            Err(exception) => panic!("Unhandled exception: {}", exception),
         }
 
         println!("END");

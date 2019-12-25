@@ -1,4 +1,4 @@
-use intcode::emulator::{Program, IntcodeEmulator, Word, Exception};
+use intcode::emulator::{Program, IntcodeEmulator, Context, Word};
 use std::collections::{VecDeque, HashMap};
 use std::cell::{RefCell, Cell};
 use std::rc::Rc;
@@ -41,7 +41,7 @@ impl Computer {
         let idle_ = Rc::clone(&idle);
         let input_queue_ = Rc::clone(&input_queue);
         let mut last_input = -1;
-        let input_handler = Box::new(move || {
+        let input_handler = Box::new(move |_: &mut Context| {
             if let Some(input) = input_queue_.borrow_mut().pop_front() {
                 println!("@{}: READ {}", address, input);
                 last_input = input;
@@ -59,7 +59,7 @@ impl Computer {
         });
 
         let mut output_buffer = Vec::new();
-        let output_handler = Box::new(move |word| {
+        let output_handler = Box::new(move |_: &mut Context, word| {
             println!("@{}: WRITE {}", address, word);
             output_buffer.push(word);
 
@@ -96,7 +96,7 @@ impl Computer {
     fn step(&mut self) {
         // This is very inefficient, should really run until I/O
         match self.cpu.step() {
-            Err(Exception::Halt) | Ok(_) => (),
+            Ok(_) => (),
             Err(exception) => {
                 eprintln!("@{} CPU PANIC!!!", self.address);
                 self.cpu.dump_registers();

@@ -1,5 +1,5 @@
 use intcode::emulator;
-use intcode::emulator::{Word, Program};
+use intcode::emulator::{Word, Program, Context};
 use std::collections::{VecDeque, HashSet};
 use std::fmt;
 use std::cell::RefCell;
@@ -39,7 +39,7 @@ fn run(program: &Program, pos: Pos, map_size: (usize, usize), paint_white: bool)
     {
         let m = Rc::clone(&map);
         let r = Rc::clone(&robot);
-        let input_handler = Box::new(move || {
+        let input_handler = Box::new(move |_: &mut Context| {
             let map = m.borrow();
             let robot = r.borrow();
 
@@ -48,7 +48,7 @@ fn run(program: &Program, pos: Pos, map_size: (usize, usize), paint_white: bool)
 
         let m = Rc::clone(&map);
         let r = Rc::clone(&robot);
-        let output_handler = Box::new(move |word| {
+        let output_handler = Box::new(move |_: &mut Context, word| {
             let mut map = m.borrow_mut();
             let mut robot = r.borrow_mut();
             robot.handle_input(word, &mut map);
@@ -59,10 +59,7 @@ fn run(program: &Program, pos: Pos, map_size: (usize, usize), paint_white: bool)
         let mut cpu = emulator::IntcodeEmulator::new(input_handler, output_handler);
         cpu.load_program(&program);
 
-        let exception = cpu.run();
-        if !exception.is_halt() {
-            panic!("Unhandled exception: {}", exception);
-        }
+        cpu.run().expect("Unhandled exception");
     }
 
     Rc::try_unwrap(map).unwrap().into_inner()

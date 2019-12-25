@@ -1,4 +1,4 @@
-use intcode::emulator::{Program, IntcodeEmulator, Word};
+use intcode::emulator::{Program, IntcodeEmulator, Word, Context};
 use std::collections::VecDeque;
 use std::io;
 use std::cell::Cell;
@@ -97,21 +97,21 @@ fn scan(program: &Program, x: Word, y: Word) -> Word {
     assert!(x >= 0);
     assert!(y >= 0);
     let mut input: VecDeque<Word> = [x, y].iter().copied().collect();
-    let input_handler = Box::new(move || {
+    let input_handler = Box::new(move |_: &mut Context| {
         input.pop_front()
             .ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "No more input!"))
     });
 
     let output = Rc::new(Cell::new(INVALID));
     let output_ = Rc::clone(&output);
-    let output_handler = Box::new(move |word| {
+    let output_handler = Box::new(move |_: &mut Context, word| {
         output_.set(word);
         Ok(())
     });
 
     let mut cpu = IntcodeEmulator::new(input_handler, output_handler);
     cpu.load_program(&program);
-    cpu.run();
+    cpu.run().expect("Failed to run program");
 
     output.get()
 }

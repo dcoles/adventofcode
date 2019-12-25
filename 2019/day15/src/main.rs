@@ -1,4 +1,4 @@
-use intcode::emulator::{IntcodeEmulator, Program, Exception, Word};
+use intcode::emulator::{IntcodeEmulator, Context, Program, Exception, Word};
 use std::convert::{TryFrom, TryInto};
 use std::collections::{HashMap, HashSet};
 use std::{ops, thread, env, io};
@@ -234,9 +234,12 @@ impl Droid {
         let state = Rc::new(RefCell::new(DroidState { next_command: None, status: Status::Moved }));
 
         let state_ = Rc::clone(&state);
-        let input_handler = Box::new(move || state_.borrow_mut().handle_input());
+        let input_handler = Box::new(move |_: &mut Context| state_.borrow_mut().handle_input());
         let state_ = Rc::clone(&state);
-        let output_handler = Box::new(move |word| state_.borrow_mut().handle_output(word));
+        let output_handler = Box::new(move |context: &mut Context, word| {
+            context.set_yield(true);
+            state_.borrow_mut().handle_output(word)
+        });
 
         let mut cpu = IntcodeEmulator::new(input_handler, output_handler);
         cpu.load_program(program);
@@ -247,10 +250,10 @@ impl Droid {
     fn execute(&mut self, command: MovementCommand) -> Status {
         self.state.borrow_mut().next_command = Some(command);
 
-        match self.cpu.run_until_output() {
-            Err(Exception::Halt) => panic!("Program halted"),
+        match self.cpu.run() {
+            Ok(()) => panic!("Program halted"),
+            Err(Exception::Yield) => (),
             Err(exception) => panic!("Unhandled exception: {}", exception),
-            Ok(_) => (),
         }
 
         let status = self.state.borrow().status;

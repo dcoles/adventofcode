@@ -82,9 +82,9 @@ fn run(program: &Program, ascii: bool, debug: bool, break_at_start: bool, dump: 
 
     loop {
         match cpu.run() {
-            Exception::Halt => break,
-            Exception::IllegalInstruction(opcode) => {
-                eprintln!("ERROR: Illegal instruction {}", opcode);
+            Ok(()) => break,
+            Err(Exception::IllegalInstruction(opcode)) => {
+                eprintln!("Illegal instruction {}", opcode);
                 if debug {
                     attach_debugger(&mut cpu);
                 } else {
@@ -94,7 +94,7 @@ fn run(program: &Program, ascii: bool, debug: bool, break_at_start: bool, dump: 
                 }
                 process::exit(4);
             },
-            Exception::SegmentationFault(addr) => {
+            Err(Exception::SegmentationFault(addr)) => {
                 eprintln!("Segmentation fault at 0x{:08x}", addr);
                 if debug {
                     attach_debugger(&mut cpu);
@@ -105,12 +105,19 @@ fn run(program: &Program, ascii: bool, debug: bool, break_at_start: bool, dump: 
                 }
                 process::exit(11);
             },
-            Exception::IOError(err) => {
+            Err(Exception::IOError(err)) => {
                 eprintln!("IO error: {}", err);
                 if debug {
                     attach_debugger(&mut cpu);
                 }
                 process::exit(29);
+            }
+            Err(exception) => {
+                eprintln!("{}", exception.to_string());
+                if debug {
+                    attach_debugger(&mut cpu);
+                }
+                process::exit(1);
             }
         }
     }

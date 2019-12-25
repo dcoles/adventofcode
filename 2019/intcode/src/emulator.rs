@@ -5,10 +5,11 @@ use std::io::{Write, BufRead};
 use std::collections::VecDeque;
 use std::cell::RefCell;
 use std::rc::Rc;
+use crate::emulator::Opcode::Halt;
 
 pub type Word = i64;
-pub type InputHandler = dyn FnMut() -> io::Result<Word>;
-pub type OutputHandler = dyn FnMut(Word) -> io::Result<()>;
+pub type InputHandler = dyn FnMut(&mut Context) -> io::Result<Word>;
+pub type OutputHandler = dyn FnMut(&mut Context, Word) -> io::Result<()>;
 
 pub const MEMSIZE: usize = 2 << 11;  // 4 KiB
 
@@ -60,24 +61,26 @@ impl ops::IndexMut<usize> for Program {
 pub struct IntcodeEmulator {
     ip: usize,
     relbase: Word,
-    current_instruction: Instruction,
     mem: Vec<Word>,
+    decoded_instruction: Instruction,
     input_handler: Box<InputHandler>,
     output_handler: Box<OutputHandler>,
+    yield_: bool,
     debug: bool,
 }
 
 impl IntcodeEmulator {
     /// Create a new IntcodeEmulator
     pub fn new(input_handler: Box<InputHandler>, output_handler: Box<OutputHandler>) -> IntcodeEmulator {
-        let current_instruction = Instruction::new(Opcode::Halt.into()).ok().unwrap();
+        let decoded_instruction = Instruction::new(Halt.into()).unwrap();
         IntcodeEmulator {
             ip: 0,
             relbase: 0,
-            current_instruction,
-            mem: vec![current_instruction.into()],
+            mem: vec![decoded_instruction.into()],
+            decoded_instruction,
             input_handler,
             output_handler,
+            yield_: false,
             debug: false,
         }
     }
@@ -105,6 +108,12 @@ impl IntcodeEmulator {
     /// The current decoded instruction
     pub fn current_instruction(&self) -> Result<Instruction, Exception> {
         Instruction::new(*self.mem.get(self.ip).ok_or_else(|| Exception::SegmentationFault(self.ip))?)
+    }
+
+    /// Is the CPU halted
+    pub fn is_halted(&self) -> bool {
+        self.current_instruction().map(|x| x.op.is_halt())
+            .unwrap_or(false)
     }
 
     /// The current memory contents
@@ -143,40 +152,29 @@ impl IntcodeEmulator {
     }
 
     /// Run a program until an exception is encountered
-    pub fn run(&mut self) -> Exception {
-        loop {
-            if let Err(exception) = self.step() {
-                return exception;
-            }
+    pub fn run(&mut self) -> Result<(), Exception> {
+        while !self.is_halted() {
+            self.step()?
         }
-    }
-
-    /// Run a program until output is generated
-    pub fn run_until_output(&mut self) -> Result<(), Exception> {
-        loop {
-            if self.step()? {
-                return Ok(());
-            }
-        }
+        Ok(())
     }
 
     /// Try to step a single instruction
-    pub fn step(&mut self) -> Result<bool, Exception> {
+    pub fn step(&mut self) -> Result<(), Exception> {
         if self.ip >= self.mem.len() {
             return Err(Exception::SegmentationFault(self.ip));
         }
 
-        self.current_instruction = self.current_instruction().map_err(|_| Exception::IllegalInstruction(self.mem[self.ip]))?;
+        self.decoded_instruction = self.current_instruction().map_err(|_| Exception::IllegalInstruction(self.mem[self.ip]))?;
         if self.debug {
             self.print_disassembled();
         }
 
-        if self.ip + self.current_instruction.op.nparams() >= self.mem.len() {
+        if self.ip + self.decoded_instruction.op.nparams() >= self.mem.len() {
             return Err(Exception::SegmentationFault(self.ip));
         }
 
-        let mut had_output = false;
-        match self.current_instruction.op {
+        match self.decoded_instruction.op {
             Opcode::Add => {
                 *self.store(3)? = self.load(1)? + self.load(2)?;
             },
@@ -184,25 +182,28 @@ impl IntcodeEmulator {
                 *self.store(3)? = self.load(1)? * self.load(2)?;
             },
             Opcode::Input => {
-                *self.store(1)? = (self.input_handler)().map_err(Exception::IOError)?;
+                let mut context = Context::new();
+                *self.store(1)? = (self.input_handler)(&mut context).map_err(Exception::IOError)?;
+                self.yield_ = context.yield_;
             },
             Opcode::Output => {
+                let mut context = Context::new();
                 let word = self.load(1)?;
-                (self.output_handler)(word).map_err(Exception::IOError)?;
-                had_output = true;
+                (self.output_handler)(&mut context, word).map_err(Exception::IOError)?;
+                self.yield_ = context.yield_;
             },
             Opcode::JumpIfTrue => {
                 if self.load(1)? != 0 {
                     self.ip = self.load(2)?.try_into()  // must not be negative
                         .or(Err(Exception::IllegalInstruction(self.mem[self.ip])))?;
-                    return Ok(false);
+                    return self.maybe_yield();
                 }
             },
             Opcode::JumpIfFalse => {
                 if self.load(1)? == 0 {
                     self.ip = self.load(2)?.try_into()  // must not be negative
                         .or(Err(Exception::IllegalInstruction(self.mem[self.ip])))?;
-                    return Ok(false);
+                    return self.maybe_yield();
                 }
             },
             Opcode::LessThan => {
@@ -214,11 +215,22 @@ impl IntcodeEmulator {
             Opcode::SetRBOffset => {
                 self.relbase += self.load(1)?;
             }
-            Opcode::Halt => return Err(Exception::Halt),
+            Opcode::Halt => return Ok(()),
         };
-        self.ip += self.current_instruction.op.nparams() + 1;
+        self.ip += self.decoded_instruction.op.nparams() + 1;
 
-        Ok(had_output)
+        self.maybe_yield()
+    }
+
+    /// Check if the emulator should yield
+    /// Resets `yield` flag
+    fn maybe_yield(&mut self) -> Result<(), Exception> {
+        if self.yield_ {
+            self.yield_ = false;
+            Err(Exception::Yield)
+        } else {
+            Ok(())
+        }
     }
 
     /// Dump registers to console
@@ -276,7 +288,7 @@ impl IntcodeEmulator {
     /// Load a value from memory
     fn load(&self, param: usize) -> Result<Word, Exception> {
         assert!(param >= 1);
-        let mode = self.current_instruction.mode_for(param);
+        let mode = self.decoded_instruction.mode_for(param);
         let addr = self.ip + param;
         let value = self.mem.get(addr).copied().ok_or(Exception::SegmentationFault(addr))?;
         match mode {
@@ -297,7 +309,7 @@ impl IntcodeEmulator {
     /// Store a value to memory
     fn store(&mut self, param: usize) -> Result<&mut Word, Exception> {
         assert!(param >= 1);
-        let mode = self.current_instruction.mode_for(param);
+        let mode = self.decoded_instruction.mode_for(param);
         let addr = self.ip + param;
         let value = self.mem.get(addr).copied().ok_or(Exception::SegmentationFault(addr))?;
         match mode {
@@ -323,7 +335,22 @@ impl Default for IntcodeEmulator {
     }
 }
 
-pub fn default_input_handler() -> io::Result<Word> {
+pub struct Context {
+    yield_: bool,
+}
+
+impl Context {
+    fn new() -> Self {
+        Context { yield_: false }
+    }
+
+    /// Set the yield flag
+    pub fn set_yield(&mut self, yield_: bool) {
+        self.yield_ = yield_;
+    }
+}
+
+pub fn default_input_handler(_: &mut Context) -> io::Result<Word> {
     let mut inbuf = String::new();
     io::stdin().read_line(&mut inbuf)?;
     let input = inbuf.trim().parse::<Word>()
@@ -332,7 +359,7 @@ pub fn default_input_handler() -> io::Result<Word> {
     Ok(input)
 }
 
-pub fn default_output_handler(word: i64) -> io::Result<()> {
+pub fn default_output_handler(_: &mut Context, word: i64) -> io::Result<()> {
     writeln!(&mut io::stdout(), "{}", word)
 }
 
@@ -348,7 +375,7 @@ impl AsciiIOHandler {
     pub fn input_handler(&mut self) -> Box<InputHandler> {
         let input_buffer = Rc::clone(&self.input_buffer);
 
-        Box::new(move || {
+        Box::new(move |_| {
             let mut input_buffer = input_buffer.borrow_mut();
             while input_buffer.is_empty() {
                 let mut line = String::new();
@@ -362,7 +389,7 @@ impl AsciiIOHandler {
     }
 
     pub fn output_handler(&self) -> Box<OutputHandler> {
-        Box::new(|word| {
+        Box::new(|_, word| {
             if (0x00..=0x7F).contains(&word) {
                 let c = word as u8 as char;
                 print!("{}", c);
@@ -443,6 +470,11 @@ impl Opcode {
             Halt => 0,
         }
     }
+
+    /// Is this a Halt opcode
+    pub fn is_halt(self) -> bool {
+        self == Opcode::Halt
+    }
 }
 
 impl fmt::Display for Opcode {
@@ -507,26 +539,17 @@ impl From<Opcode> for Word {
 /// Exception status
 #[derive(Debug)]
 pub enum Exception {
-    Halt,
+    Yield,
     IllegalInstruction(Word),
     SegmentationFault(usize),
     IOError(io::Error),
-}
-
-impl Exception {
-    pub fn is_halt(&self) -> bool {
-        match self {
-            Exception::Halt => true,
-            _ => false,
-        }
-    }
 }
 
 impl fmt::Display for Exception {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         use Exception::*;
         f.write_str(&match &self {
-            Halt => String::from("Halt"),
+            Yield => String::from("Yield"),
             IllegalInstruction(word) => format!("Illegal instruction {}", word),
             SegmentationFault(addr) => format!("Segmentation fault at {:08x}", addr),
             IOError(error) => format!("IO error: {}", error),
@@ -548,7 +571,8 @@ mod tests {
         cpu.load_program(&program);
         cpu.mem_mut()[1] = 12;
         cpu.mem_mut()[2] = 2;
-        assert!(cpu.run().is_halt());
+        assert!(cpu.run().is_ok());
+        assert!(cpu.is_halted());
 
         assert_eq!(cpu.mem()[0], 4714701);
     }
@@ -560,7 +584,8 @@ mod tests {
         cpu.load_program(&program);
         cpu.mem_mut()[1] = 51;
         cpu.mem_mut()[2] = 21;
-        assert!(cpu.run().is_halt());
+        assert!(cpu.run().is_ok());
+        assert!(cpu.is_halted());
 
         assert_eq!(cpu.mem()[0], 19690720);
     }
@@ -589,13 +614,13 @@ mod tests {
 
         {
             let input = Rc::clone(&input);
-            let input_handler = Box::new(move || {
+            let input_handler = Box::new(move |_: &mut Context| {
                 input.borrow_mut().pop_back()
                     .ok_or_else(|| io::Error::new(io::ErrorKind::BrokenPipe, "Input exhausted"))
             });
 
             let output = Rc::clone(&output);
-            let output_handler = Box::new(move |word| {
+            let output_handler = Box::new(move |_: &mut Context, word| {
                 output.borrow_mut().push(word);
 
                 Ok(())
@@ -604,7 +629,8 @@ mod tests {
             let mut cpu = IntcodeEmulator::new(input_handler, output_handler);
             cpu.load_program(&program);
 
-            assert!(cpu.run().is_halt());
+            assert!(cpu.run().is_ok());
+            assert!(cpu.is_halted());
         }
 
         let output = Rc::try_unwrap(output).unwrap().into_inner();
