@@ -47,3 +47,20 @@ fn part2(input: &[i32]) -> i32 {
 
     panic!("No result found!");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_part1_example1() {
+        let input = read_input("input1.txt");
+        assert_eq!(part1(&input), 514579);
+    }
+
+    #[test]
+    fn test_part2_example1() {
+        let input = read_input("input1.txt");
+        assert_eq!(part2(&input), 241861950);
+    }
+}
