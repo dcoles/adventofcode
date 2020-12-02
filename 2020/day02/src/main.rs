@@ -2,12 +2,14 @@ use std::path::Path;
 use std::fs;
 use regex::Regex;
 
-
 fn main() {
     let passwords = read_input("input.txt");
 
     // Part 1
-    println!("Part 1: Number of valid passwords is {}", passwords.iter().filter(|p| p.valid()).count());
+    println!("Part 1: Number of valid passwords is {}", passwords.iter().filter(|p| p.valid1()).count());
+
+    // Part 2
+    println!("Part 2: Number of valid passwords is {}", passwords.iter().filter(|p| p.valid2()).count());
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Vec<Password> {
@@ -19,12 +21,12 @@ fn read_input<T: AsRef<Path>>(path: T) -> Vec<Password> {
         }
 
         let m = regex.captures(line).expect("Failed to parse input");
-        let min = m[1].parse().unwrap();
-        let max = m[2].parse().unwrap();
+        let a = m[1].parse().unwrap();
+        let b = m[2].parse().unwrap();
         let character = m[3].chars().next().unwrap();
         let password = m[4].into();
 
-        passwords.push(Password { min, max, character, password });
+        passwords.push(Password { a, b, character, password });
     }
 
     passwords
@@ -32,17 +34,26 @@ fn read_input<T: AsRef<Path>>(path: T) -> Vec<Password> {
 
 #[derive(Debug)]
 struct Password {
-    min: usize,
-    max: usize,
+    a: usize,
+    b: usize,
     character: char,
     password: String,
 }
 
 impl Password {
-    fn valid(&self) -> bool {
+    /// Policy 1: Password must contain `character` a minimum of `a` times and a maximum of `b` times.
+    fn valid1(&self) -> bool {
         let count = self.password.chars().filter(|&c| c == self.character).count();
 
-        count >= self.min && count <= self.max
+        count >= self.a && count <= self.b
+    }
+
+    /// Policy 2: Password must contain `character` at either index `a` or index `b`, but not both.
+    /// Indexing is 1-based (there is no "index 0")
+    fn valid2(&self) -> bool {
+        let chars: Vec<_> = self.password.chars().collect();
+
+        (chars[self.a - 1] == self.character) ^ (chars[self.b - 1] == self.character)
     }
 }
 
@@ -54,6 +65,12 @@ mod tests {
     fn test_part1_example1() {
         let passwords = read_input("input1.txt");
         assert_eq!(passwords.iter().filter(|p| p.valid()).count(), 2);
+    }
+
+    #[test]
+    fn test_part2_example1() {
+        let passwords = read_input("input1.txt");
+        assert_eq!(passwords.iter().filter(|p| p.valid2()).count(), 1);
     }
 }
 
