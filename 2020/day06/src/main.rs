@@ -12,35 +12,26 @@ fn main() {
 fn read_input<T: AsRef<Path>>(path: T) -> Vec<Vec<String>> {
     fs::read_to_string(path).expect("Failed to read input")
         .split("\n\n")
-        .map(|line| line.lines().map(|l| l.to_owned()).collect())
+        .map(|group| group.lines().map(|l| l.to_owned()).collect())
         .collect()
 }
 
-fn count_any(groups: &Vec<Vec<String>>) -> usize {
-    let mut count = 0;
-    for group in groups {
-        let mut set = HashSet::new();
-        for person in group {
-            set.extend(person.chars());
-        }
-        count += set.len();
-    }
-
-    count
+fn count_any(groups: &[Vec<String>]) -> usize {
+    groups.iter().map(|group| {
+        let set: HashSet<_> = group.iter().flat_map(|p| p.chars()).collect();
+        set.len()
+    }).sum()
 }
 
-fn count_all(groups: &Vec<Vec<String>>) -> usize {
-    let mut count = 0;
-    for group in groups {
+fn count_all(groups: &[Vec<String>]) -> usize {
+    groups.iter().map(|group| {
         let mut set: HashSet<_> = ('a'..='z').collect();
         for person in group {
             let questions: HashSet<_> = person.chars().collect();
             set = set.intersection(&questions).copied().collect();
         }
-        count += set.len();
-    }
-
-    count
+        set.len()
+    }).sum()
 }
 
 #[cfg(test)]
