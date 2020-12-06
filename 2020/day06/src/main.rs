@@ -6,6 +6,7 @@ fn main() {
     let groups = read_input("input.txt");
 
     println!("Part 1: Sum of count of questions ANY person answered yes is {}", count_any(&groups));
+    println!("Part 2: Sum of count of questions ALL people answered yes is {}", count_all(&groups));
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Vec<Vec<String>> {
@@ -35,10 +36,7 @@ fn count_all(groups: &Vec<Vec<String>>) -> usize {
         for person in group {
             let questions: HashSet<_> = person.chars().collect();
             set = set.intersection(&questions).copied().collect();
-            println!("set {:?}", set);
         }
-
-        println!("{}", set.len());
         count += set.len();
     }
 
