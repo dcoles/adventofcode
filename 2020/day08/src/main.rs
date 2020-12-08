@@ -8,6 +8,7 @@ fn main() {
     let program = read_input("input.txt");
 
     println!("Part 1: {}", part1(&program));
+    println!("Part 2: {}", part2(&program));
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Program {
@@ -37,6 +38,31 @@ fn part1(input: &Program) -> i32 {
     cpu.acc
 }
 
+fn part2(input: &Program) -> i32 {
+    for i in 0..input.len() {
+        let mut program = input.clone();
+
+        match program[i].op {
+            Operation::NOP => program[i].op = Operation::JMP,
+            Operation::JMP => program[i].op = Operation::NOP,
+            _ => (),
+        }
+
+        let mut cpu = CPU::from_program(&program);
+        let mut seen = HashSet::new();
+        while !seen.contains(&cpu.pc) && cpu.pc < cpu.program.len() {
+            seen.insert(cpu.pc);
+            cpu.step();
+        }
+
+        if cpu.pc == program.len() {
+            return cpu.acc;
+        }
+    }
+
+    panic!("No solution found!")
+}
+
 #[derive(Copy, Clone, Debug)]
 struct Instruction {
     op: Operation,
@@ -61,15 +87,15 @@ impl Operation {
     }
 }
 
-struct CPU {
+struct CPU<'a> {
     pc: usize,
     acc: i32,
-    program: Vec<Instruction>,
+    program: &'a [Instruction],
 }
 
-impl CPU {
-    fn from_program(program: &Program) -> Self {
-        CPU { pc: 0, acc: 0, program: program.clone() }
+impl<'a> CPU<'a> {
+    fn from_program(program: &'a Program) -> Self {
+        CPU { pc: 0, acc: 0, program }
     }
 
     fn step(&mut self) {
@@ -94,6 +120,12 @@ mod tests {
     fn test_part1() {
         let input = read_input("sample1.txt");
         assert_eq!(part1(&input), 5);
+    }
+
+    #[test]
+    fn test_part2() {
+        let input = read_input("sample1.txt");
+        assert_eq!(part2(&input), 8);
     }
 }
 
