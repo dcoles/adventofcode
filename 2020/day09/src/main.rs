@@ -6,7 +6,10 @@ type Input = Vec<u64>;
 fn main() {
     let input = read_input("input.txt");
 
-    println!("Part 1: {}", part1(&input, 25));
+    let n = part1(&input, 25);
+    println!("Part 1: {}", n);
+    println!("Part 2: {}", part2(&input, n));
+
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Input {
@@ -32,6 +35,27 @@ fn part1(input: &Input, preamble: usize) -> u64 {
     panic!("No solution found!");
 }
 
+fn part2(input: &Input, target: u64) -> u64 {
+    'test: for i in 0..input.len() {
+        let mut sum = 0;
+        for j in i..input.len() {
+            sum += input[j];
+            if sum == target {
+                let min = input[i..=j].iter().min().unwrap();
+                let max = input[i..j].iter().max().unwrap();
+
+                return min + max;
+            }
+
+            if sum > target {
+                continue 'test;
+            }
+        }
+    }
+
+    panic!("No solution found!");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -40,6 +64,12 @@ mod tests {
     fn test_part1() {
         let input = read_input("sample1.txt");
         assert_eq!(part1(&input, 5), 127);
+    }
+
+    #[test]
+    fn test_part2() {
+        let input = read_input("sample1.txt");
+        assert_eq!(part2(&input, 127), 62);
     }
 }
 
