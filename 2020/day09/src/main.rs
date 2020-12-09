@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::fs;
+use std::cmp::Ordering;
 
 type Input = Vec<u64>;
 
@@ -20,40 +21,56 @@ fn read_input<T: AsRef<Path>>(path: T) -> Input {
 }
 
 fn part1(input: &Input, preamble: usize) -> u64 {
-    'test: for i in preamble..input.len() {
+    for i in preamble..input.len() {
         let n = input[i];
-        for j in i-preamble..i {
-            for k in j+1..i {
-                if input[j] + input[k] == n {
-                    continue 'test
-                }
-            }
+
+        if !is_valid(&input[i-preamble..i], n) {
+            return n;
         }
-        return n;
     }
 
     panic!("No solution found!");
 }
 
-fn part2(input: &Input, target: u64) -> u64 {
-    'test: for i in 0..input.len() {
-        let mut sum = 0;
-        for j in i..input.len() {
-            sum += input[j];
-            if sum == target {
-                let min = input[i..=j].iter().min().unwrap();
-                let max = input[i..j].iter().max().unwrap();
-
-                return min + max;
-            }
-
-            if sum > target {
-                continue 'test;
+fn is_valid(preamble: &[u64], number: u64) -> bool {
+    for j in 0..preamble.len() {
+        for k in j+1..preamble.len() {
+            if preamble[j] + preamble[k] == number {
+                return true;
             }
         }
     }
 
+    false
+}
+
+fn part2(input: &Input, target: u64) -> u64 {
+    for i in 0..input.len() {
+        if let Some(range) = find_contiguous_range(&input[i..], target) {
+            let min = range.iter().min().unwrap();
+            let max = range.iter().max().unwrap();
+
+            return min + max;
+        }
+    }
+
     panic!("No solution found!");
+}
+
+fn find_contiguous_range(window: &[u64], target: u64) -> Option<&[u64]> {
+    let mut sum = 0;
+
+    for i in 0..window.len() {
+        sum += window[i];
+
+        match sum.cmp(&target) {
+            Ordering::Greater => break,  // Too big!
+            Ordering::Less => continue,  // Not big enough!
+            Ordering::Equal => return Some(&window[..i]),  // Just right!
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
