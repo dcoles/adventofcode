@@ -1,12 +1,13 @@
 use std::path::Path;
 use std::fs;
 
-type Input = Vec<u32>;
+type Input = Vec<u64>;
 
 fn main() {
     let input = read_input("input.txt");
 
     println!("Part 1: {}", part1(&input));
+    println!("Part 2: {}", part2(&input));
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Input {
@@ -16,7 +17,7 @@ fn read_input<T: AsRef<Path>>(path: T) -> Input {
         .collect()
 }
 
-fn part1(input: &Input) -> u32 {
+fn part1(input: &Input) -> u64 {
     let mut adapters = input.clone();
     adapters.sort();
 
@@ -37,6 +38,39 @@ fn part1(input: &Input) -> u32 {
     ones * threes
 }
 
+fn part2(input: &Input) -> u64 {
+    //let mut adapters: HashSet<u64> = input.iter().copied().collect();
+    let mut adapters = input.clone();
+    adapters.sort();
+
+    let mut combinations = 1;
+
+    let mut n2 = 0;
+    let mut n1 = 0;
+    let mut n0 = 1;
+
+    let mut prev = 0;
+    for &n in &adapters {
+        if n == prev + 1 {
+            let n3 = n2;
+            n2 = n1;
+            n1 = n0;
+            n0 = n1 + n2 + n3;
+        } else {
+            combinations *= n0;
+            n2 = 0;
+            n1 = 0;
+            n0 = 1;
+        }
+        prev = n;
+    }
+
+    // Need to account for a possible last run
+    combinations *= n0;
+
+    combinations
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -51,6 +85,18 @@ mod tests {
     fn test_part1_sample2() {
         let input = read_input("sample2.txt");
         assert_eq!(part1(&input), 220);
+    }
+
+    #[test]
+    fn test_part2_sample1() {
+        let input = read_input("sample1.txt");
+        assert_eq!(part2(&input), 8);
+    }
+
+    #[test]
+    fn test_part2_sample2() {
+        let input = read_input("sample2.txt");
+        assert_eq!(part2(&input), 19208);
     }
 }
 
