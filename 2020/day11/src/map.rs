@@ -2,7 +2,7 @@
 use std::path::Path;
 use std::fs;
 
-pub type Pos = (usize, usize);
+pub type Pos = (i32, i32);
 pub type Tile = char;
 
 #[derive(Clone)]
@@ -37,15 +37,26 @@ impl Map {
     }
 
     pub fn at(&self, (x, y): Pos) -> Tile {
-        assert!(x < self.width);
-        assert!(y < self.height);
-        self.tiles[y * self.width + x]
+        assert!(self.is_valid_pos(&(x, y)));
+        self.tiles[y as usize * self.width + x as usize]
+    }
+
+    pub fn get(&self, pos: Pos) -> Option<Tile> {
+        if !self.is_valid_pos(&pos) {
+            None
+        } else {
+            Some(self.tiles[pos.1 as usize * self.width + pos.0 as usize])
+        }
+    }
+
+    pub fn is_valid_pos(&self, pos: &Pos) -> bool {
+        pos.0 >= 0 && (pos.0 as usize) < self.width
+            && pos.1 >= 0 && (pos.1 as usize) < self.height
     }
 
     pub fn set(&mut self, (x, y): Pos, tile: Tile) {
-        assert!(x < self.width);
-        assert!(y < self.height);
-        self.tiles[y * self.width + x] = tile;
+        assert!(self.is_valid_pos(&(x, y)));
+        self.tiles[y as usize * self.width + x as usize] = tile;
     }
 
     pub fn count(&self, tile: Tile) -> usize {
@@ -53,8 +64,8 @@ impl Map {
     }
 
     pub fn print(&self) {
-        for y in 0..self.height {
-            for x in 0..self.width {
+        for y in 0..self.height as i32 {
+            for x in 0..self.width as i32 {
                 print!("{}", self.at((x, y)));
             }
             println!();
