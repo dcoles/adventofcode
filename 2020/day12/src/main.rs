@@ -6,7 +6,8 @@ type Input = Vec<Action>;
 fn main() {
     let input = read_input("input.txt");
 
-    println!("Part 1: {:?}", part1(&input));
+    println!("Part 1: {:?}", part1(&input).distance());
+    println!("Part 2: {:?}", part2(&input).distance());
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Input {
@@ -21,6 +22,16 @@ fn part1(input: &Input) -> Ship {
 
     for &action in input {
         ship.do_action(action);
+    }
+
+    ship
+}
+
+fn part2(input: &Input) -> Ship {
+    let mut ship = Ship::new();
+
+    for &action in input {
+        ship.do_action_waypoint(action);
     }
 
     ship
@@ -58,12 +69,13 @@ impl Action {
 #[derive(Debug)]
 struct Ship {
     position: (i32, i32),
+    waypoint: (i32, i32),
     direction: u32,
 }
 
 impl Ship {
     fn new() -> Self {
-        Ship { direction: 0, position: (0, 0) }
+        Ship { position: (0, 0), waypoint: (10, 1), direction: 0 }
     }
 
     fn do_action(&mut self, action: Action) {
@@ -87,6 +99,43 @@ impl Ship {
             }
         }
     }
+
+    fn do_action_waypoint(&mut self, action: Action) {
+        use Action::*;
+
+        match action {
+            North(val) => self.waypoint.1 += val as i32,
+            South(val) => self.waypoint.1 -= val as i32,
+            East(val) => self.waypoint.0 += val as i32,
+            West(val) => self.waypoint.0 -= val as i32,
+            Left(val) => {
+                match val {
+                    0 => (),
+                    90 => self.waypoint = (-self.waypoint.1, self.waypoint.0),
+                    180 => self.waypoint = (-self.waypoint.0, -self.waypoint.1),
+                    270 => self.waypoint = (self.waypoint.1, -self.waypoint.0),
+                    other => panic!("Unhandled angle: {}", other),
+                }
+            },
+            Right(val) => {
+                match val {
+                    0 => (),
+                    90 => self.waypoint = (self.waypoint.1, -self.waypoint.0),
+                    180 => self.waypoint = (-self.waypoint.0, -self.waypoint.1),
+                    270 => self.waypoint = (-self.waypoint.1, self.waypoint.0),
+                    other => panic!("Unhandled angle: {}", other),
+                }
+            },
+            Forward(val) => self.position = (
+                self.position.0 + val as i32 * self.waypoint.0,
+                self.position.1 + val as i32 * self.waypoint.1,
+            ),
+        }
+    }
+
+    fn distance(&self) -> u32 {
+        (self.position.0.abs() + self.position.1.abs()) as u32
+    }
 }
 
 #[cfg(test)]
@@ -95,8 +144,14 @@ mod tests {
 
     #[test]
     fn test_part1() {
-        let input = read_input("input.txt");
-        assert_eq!(part1(&input), 45);
+        let input = read_input("sample1.txt");
+        assert_eq!(part1(&input).distance(), 25);
+    }
+
+    #[test]
+    fn test_part2() {
+        let input = read_input("sample1.txt");
+        assert_eq!(part2(&input).distance(), 286);
     }
 }
 
