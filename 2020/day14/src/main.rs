@@ -12,6 +12,7 @@ fn main() {
     let input = read_input("input.txt");
 
     println!("Part 1: {}", part1(&input));
+    println!("Part 2: {}", part2(&input));
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Input {
@@ -84,6 +85,44 @@ fn part1(input: &Input) -> u64 {
     mem.values().sum()
 }
 
+fn part2(input: &Input) -> u64 {
+    let mut mem: HashMap<u64, u64> = HashMap::new();
+
+    // on-mask and floating-mask
+    let mut mask = (0x0000000000000000_u64, 0x0000000000000000_u64);
+    for instruction in input {
+        match instruction {
+            &Instruction::Mask(m_on, _, m_floating) => {
+                // Update masks
+                mask = (m_on, m_floating);
+            },
+            &Instruction::Mem(addr, val) => {
+                // Determine all possible floating values
+                for mut n in 0..2_u64.pow(mask.1.count_ones()) {
+                    let mut addr = addr | mask.0;
+                    let mut mask_floating = mask.1;
+
+                    // Set floating bits
+                    for _ in 0..64 {
+                        if mask_floating & 1_u64 == 1 {
+                            addr = (addr & 0xfffffffffffffffe) | (n & 1_u64);
+                            n >>= 1;
+                        }
+
+                        addr = addr.rotate_right(1);
+                        mask_floating = mask_floating.rotate_right(1);
+                    }
+
+                    // Write to affected address
+                    mem.insert(addr, val);
+                }
+            },
+        }
+    }
+
+    mem.values().sum()
+}
+
 #[derive(Debug, Clone)]
 enum Instruction {
     Mask(u64, u64, u64),
@@ -98,6 +137,12 @@ mod tests {
     fn test_part1() {
         let input = read_input("sample1.txt");
         assert_eq!(part1(&input), 165);
+    }
+
+    #[test]
+    fn test_part2() {
+        let input = read_input("sample2.txt");
+        assert_eq!(part2(&input), 208);
     }
 }
 
