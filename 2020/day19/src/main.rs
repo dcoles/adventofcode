@@ -5,17 +5,7 @@ use regex::Regex;
 
 fn main() {
     let input = read_input("input.txt");
-    let rules: HashMap<_, _> = input.rules.keys()
-        .map(|&k| {
-            let p = String::from("^") + &rule_as_pattern(&input.rules, k) + "$";
-
-            (k, Regex::new(&p).expect("Bad regex"))
-        }).collect();
-
-    let rule0 = rules.get(&0).unwrap();
-    let count = input.text.iter().filter(|l| rule0.is_match(l)).count();
-
-    println!("Part 1: {}", count);
+    println!("Part 1: {}", input.count_matches(0));
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Input {
@@ -44,27 +34,41 @@ struct Input {
     text: Vec<String>,
 }
 
-fn rule_as_pattern(rules: &HashMap<u32, Rule>, rule: u32) -> String {
-    use Rule::*;
+impl Input {
+    fn count_matches(&self, rule: u32) -> usize {
+        self.text.iter().filter(|t| self.match_rule(t, rule) == Some(t.as_str())).count()
+    }
 
-    let rule = rules.get(&rule).expect("Unknown rule");
+    fn match_rule<'a>(&self, s: &'a str, rule: u32) -> Option<&'a str> {
+        let rule = self.rules.get(&rule).expect("Unknown rule");
+        match rule {
+            Rule::Literal(c) => {
+                if s.starts_with(*c) { Some(&s[..1]) } else { None }
+            },
+            Rule::Subrule(srs) => {
+                'outer: for sr in srs {
+                    let mut i = 0;
+                    for &r in sr {
+                        if let Some(m) = self.match_rule(&s[i..], r) {
+                            i += m.len();
+                        } else {
+                            continue 'outer;
+                        }
+                    }
 
-    match rule {
-        Literal(c) => c.to_string(),
-        Subrule(rs) => rs.iter().map(|&r| rule_as_pattern(rules, r)).collect(),
-        PipeSubrule(rss) => {
-            let subrules: Vec<String> = rss.iter().map(|rs| rs.iter().map(|&r| rule_as_pattern(rules, r)).collect()).collect();
+                    return Some(&s[..i]);
+                }
 
-            String::from("(") + &subrules.join("|") + ")"
-        },
+                None
+            }
+        }
     }
 }
 
 #[derive(Debug)]
 enum Rule {
     Literal(char),
-    Subrule(Vec<u32>),
-    PipeSubrule(Vec<Vec<u32>>)
+    Subrule(Vec<Vec<u32>>)
 }
 
 impl Rule {
@@ -73,10 +77,12 @@ impl Rule {
 
         if s.starts_with('"') {
             Literal(s.chars().skip(1).next().unwrap())
-        } else if s.contains('|') {
-            PipeSubrule(s.split('|').map(|s| s.split_whitespace().map(|v| v.parse().unwrap()).collect()).collect())
         } else {
-            Subrule(s.split_whitespace().map(|v| v.parse().unwrap()).collect())
+            Subrule(
+                s.split('|')
+                    .map(|s| {
+                        s.split_whitespace().map(|v| v.parse().unwrap()).collect()
+                    }).collect())
         }
     }
 }
@@ -88,7 +94,16 @@ mod tests {
     #[test]
     fn test_part1() {
         let input = read_input("sample1.txt");
-        assert_eq!(part1(&input), 0);
+        assert_eq!(input.match_rule("aaaabb", 0), Some("aaaabb"));
+        assert_eq!(input.match_rule("aaabab", 0), Some("aaabab"));
+        assert_eq!(input.match_rule("abbabb", 0), Some("abbabb"));
+        assert_eq!(input.match_rule("abbbab", 0), Some("abbbab"));
+        assert_eq!(input.match_rule("aabaab", 0), Some("aabaab"));
+        assert_eq!(input.match_rule("aabbbb", 0), Some("aabbbb"));
+        assert_eq!(input.match_rule("abaaab", 0), Some("abaaab"));
+        assert_eq!(input.match_rule("ababbb", 0), Some("ababbb"));
+
+        assert_eq!(input.count_matches(0), 2);
     }
 }
 
