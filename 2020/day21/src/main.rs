@@ -8,7 +8,6 @@ fn main() {
 
     // Frequency counts of allergens
     let mut allergens: HashMap<String, HashSet<String>> = HashMap::new();
-
     for food in &input {
         for allergen in &food.allergens {
             allergens.entry(allergen.clone())
@@ -25,6 +24,26 @@ fn main() {
         .count();
 
     println!("Part 1: {}", part1);
+
+    let mut allergen_ingredients: HashMap<String, String> = HashMap::new();
+    while !allergens.is_empty() {
+        let allergen = allergens.iter()
+            .filter_map(|(a, is)| if is.len() == 1 { Some(a) } else { None })
+            .next().unwrap().clone();
+        let ingredient = allergens.remove(&allergen).unwrap().iter().next().unwrap().clone();
+
+        for ingredients in allergens.values_mut() {
+            ingredients.remove(&ingredient);
+        }
+
+        allergen_ingredients.insert(allergen, ingredient);
+    }
+
+    let mut allergens: Vec<_> = allergen_ingredients.keys().cloned().collect();
+    allergens.sort();
+
+    let part2: Vec<_> = allergens.iter().map(|a| allergen_ingredients[a].clone()).collect();
+    println!("Part 2: {}", part2.join(","));
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Vec<Food> {
