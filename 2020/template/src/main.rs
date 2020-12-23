@@ -11,8 +11,9 @@ fn main() {
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Input {
-    fs::read_to_string(path).expect("Failed to read input")
-        .lines()
+    let input = fs::read_to_string(path).expect("Failed to read input");
+
+    input.lines()
         .map(|line| line.to_owned())
         .collect()
 }
