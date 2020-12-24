@@ -1,17 +1,19 @@
 use std::path::Path;
 use std::fs;
-use crate::Direction::{SouthEast, SouthWest, NorthEast, NorthWest, East, West};
-use std::collections::HashMap;
+use std::collections::HashSet;
+use std::slice::Iter;
+use Direction::*;
 
-type Input = Vec<Vec<Direction>>;
+const NUM_DAYS: usize = 100;
 
 fn main() {
     let input = read_input("input.txt");
 
     println!("Part 1: {}", part1(&input));
+    println!("Part 2: {}", part2(&input));
 }
 
-fn read_input<T: AsRef<Path>>(path: T) -> Input {
+fn read_input<T: AsRef<Path>>(path: T) -> Vec<Vec<Direction>> {
     let input = fs::read_to_string(path).expect("Failed to read input");
 
     input.lines()
@@ -52,11 +54,46 @@ fn parse_directions(s: &str) -> Vec<Direction> {
     directions
 }
 
-fn part1(input: &Input) -> usize {
+fn part1(input: &[Vec<Direction>]) -> usize {
     let mut map = Map::new();
 
     for directions in input {
         map.flip(hexpos(directions));
+    }
+
+    map.count()
+}
+
+fn part2(input: &[Vec<Direction>]) -> usize {
+    let mut map = Map::new();
+
+    // Apply the initial layout
+    for directions in input {
+        map.flip(hexpos(directions));
+    }
+
+    for _ in 0..NUM_DAYS {
+        let cur = map.clone();
+        for &pos in &cur.black_tiles {
+            // Current black tiles
+            let count = cur.count_adjacent(pos);
+            if count == 0 || count > 2 {
+                // Flip to white
+                map.black_tiles.remove(&pos);
+            }
+
+            // All adjacent white tiles
+            let white_tiles = Direction::directions()
+                .map(|d| d.offset(pos))
+                .filter(|p| !cur.black_tiles.contains(p));
+            for pos in white_tiles {
+                let count = cur.count_adjacent(pos);
+                if count == 2 {
+                    // Flip to black
+                    map.black_tiles.insert(pos);
+                }
+            }
+        }
     }
 
     map.count()
@@ -84,7 +121,6 @@ enum Direction {
 
 impl Direction {
     fn offset(&self, cur: Pos) -> Pos {
-        use Direction::*;
         match self {
             East => (cur.0 + 1, cur.1),
             SouthEast => (cur.0, cur.1 - 1),
@@ -94,27 +130,45 @@ impl Direction {
             NorthEast => (cur.0 + 1, cur.1 + 1),
         }
     }
+
+    /// Iterator over all possible directions
+    fn directions() -> Iter<'static, Direction> {
+        static DIRECTIONS: [Direction; 6] = [East, SouthEast, SouthWest, West, NorthWest, NorthEast];
+        DIRECTIONS.iter()
+    }
 }
 
 type Pos = (i64, i64);
 
+#[derive(Debug, Clone)]
 struct Map {
-    tiles: HashMap<Pos, bool>,
+    black_tiles: HashSet<Pos>,
 }
 
 impl Map {
     fn new() -> Self {
-        Map { tiles: HashMap::new() }
+        Map { black_tiles: HashSet::new() }
     }
 
     /// Flip a tile
     fn flip(&mut self, pos: Pos) {
-        self.tiles.entry(pos).and_modify(|t| *t = !*t).or_insert(true);
+        if self.black_tiles.contains(&pos) {
+            self.black_tiles.remove(&pos);
+        } else {
+            self.black_tiles.insert(pos);
+        }
     }
 
     /// Count number of black tiles
     fn count(&self) -> usize {
-        self.tiles.values().filter(|&&t| t).count()
+        self.black_tiles.len()
+    }
+
+    /// Count number of adjacent black tiles
+    fn count_adjacent(&self, pos: Pos) -> usize {
+        Direction::directions()
+            .filter(|d| self.black_tiles.contains(&d.offset(pos)))
+            .count()
     }
 }
 
@@ -124,11 +178,13 @@ mod tests {
 
     #[test]
     fn test_hexpos1() {
+        use Direction::*;
         assert_eq!(hexpos(&[East, SouthEast, West]), (0, -1))
     }
 
     #[test]
     fn test_hexpos2() {
+        use Direction::*;
         assert_eq!(hexpos(&[NorthWest, West, SouthWest, East, East]), (0, 0))
     }
 
@@ -136,6 +192,12 @@ mod tests {
     fn test_part1() {
         let input = read_input("sample1.txt");
         assert_eq!(part1(&input), 10);
+    }
+
+    #[test]
+    fn test_part2() {
+        let input = read_input("sample1.txt");
+        assert_eq!(part2(&input), 2208);
     }
 }
 
