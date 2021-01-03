@@ -1,20 +1,16 @@
 use std::path::Path;
 use std::fs;
-use std::collections::VecDeque;
+use std::collections::HashMap;
 
-type Circle = VecDeque<u32>;
-
-const MAX_LABEL: u32 = 9;
-const N_CUPS: usize = 9;
+type Label = u32;
 
 fn main() {
-    let input = read_input("input.txt");
-    assert_eq!(input.len(), N_CUPS);
+    let cups = read_input("input.txt");
 
-    println!("Part 1: {}", cups_to_str(&part1(&input, 100)));
+    println!("Part 1: {}", cups_as_string(&part1(&cups, 100)));
 }
 
-fn read_input<T: AsRef<Path>>(path: T) -> Circle {
+fn read_input<T: AsRef<Path>>(path: T) -> Vec<Label> {
     let input = fs::read_to_string(path).expect("Failed to read input");
 
     input.trim().chars()
@@ -22,79 +18,108 @@ fn read_input<T: AsRef<Path>>(path: T) -> Circle {
         .collect()
 }
 
-fn part1(cups: &Circle, turns: usize) -> Circle {
-    let mut cups = cups.clone();
+fn part1(cups: &[Label], turns: usize) -> Vec<Label> {
+    let mut circle = CupCircle::new(cups);
 
     // First cup is the current cup
-    let mut current = 0;
+    let mut current = cups[0];
 
     for n in 1..=turns {
         println!("-- move {} --", n);
-        println!("cups: {:?}", cups);
-
-        let current_label = cups[current];
-        println!("current: {}", current_label);
+        println!("cups: {:?}", circle.cups_from(current));
+        println!("current: {}", current);
 
         // Pick up 3 cups immediately clockwise of the current cup
         // These are removed from the circle.
-        let pickedup = pickup(&mut cups, current, 3);
-        println!("pick up: {:?}", pickedup);
+        let pickup = circle.remove(current, 3);
+        println!("pick up: {:?}", pickup);
 
         // Select a destination cup - the one with label minus 1
         // Skip cups that have been picked up and the labels wrap around
-        let destination = find_destination_cup(&cups, current_label);
+        let mut destination = current;
+        loop {
+            destination -= 1;
+            if destination == 0 {
+                destination = cups.len() as u32;
+            }
+
+            if !pickup.contains(&destination) {
+                break;
+            }
+        }
 
         // Place the picked up cups immediately clockwise of the destination cup
-        place(&mut cups, &pickedup, destination);
+        circle.insert(destination, pickup);
 
         // Select a new current cup - the one immediately clockwise of the current cup
-        current = (find_cup(&cups, current_label) + 1) % cups.len();
+        current = circle.next_cup(current);
         println!();
     }
 
     println!("-- final --");
-    println!("cups: {:?}", cups);
+    println!("cups: {:?}", circle.cups_from(current));
 
-    // Cups after cup 1
-    let cup1 = find_cup(&cups, 1);
-    cups.into_iter().cycle().skip(cup1 + 1).take(N_CUPS - 1).collect()
+    circle.cups_from(1).into_iter().skip(1).collect()
 }
 
-/// Find the position of the cup with `label`.
-fn find_cup(cups: &Circle, label: u32) -> usize {
-    cups.iter().position(|&l| l == label).expect("Could not find cup")
-}
-
-/// Pickup `n` cups immediately clockwise of `index`.
-fn pickup(cups: &mut Circle, index: usize, n: usize) -> Vec<u32> {
-    let pickedup: Vec<_> = cups.iter().cycle().skip(index + 1).take(n).copied().collect();
-
-    *cups = cups.iter().filter(|c| !pickedup.contains(c)).copied().collect();
-
-    pickedup
-}
-
-/// Select a destination cup - the one with label minus 1.
-fn find_destination_cup(cups: &Circle, label: u32) -> usize {
-    let mut label = label;
-    loop {
-        label = if label == 1 { MAX_LABEL } else { label - 1 };
-        if let Some(p) = cups.iter().position(|&l| l == label) {
-            println!("destination: {}", label);
-            return p;
-        }
-    }
-}
-
-/// Insert `new_cups` immediately clockwise of `index`.
-fn place(cups: &mut Circle, new_cups: &[u32], index: usize) {
-    for &l in new_cups.iter().rev() {
-        cups.insert(index + 1, l);
-    }
-}
-
-fn cups_to_str(cups: &Circle) -> String {
+fn cups_as_string(cups: &[Label]) -> String {
     cups.iter().map(|c| c.to_string()).collect()
+}
+
+struct CupCircle {
+    next: HashMap<Label, Label>,
+}
+
+impl CupCircle {
+    fn new(cups: &[Label]) -> Self {
+        let next = (0..cups.len()).map(|i| (cups[i], cups[(i + 1) % cups.len()])).collect();
+
+        CupCircle { next }
+    }
+
+    /// Get the next cup clockwise in the circle.
+    fn next_cup(&self, cup: Label) -> Label {
+        *self.next.get(&cup).expect("Unknown cup label")
+    }
+
+    /// Insert `cups` immediately clockwise of `cup`
+    fn insert(&mut self, cup: Label, cups: Vec<Label>) {
+        let mut next = self.next_cup(cup);
+        for label in cups.into_iter().rev() {
+            self.next.insert(label, next);
+            next = label;
+        }
+
+        self.next.insert(cup, next);
+    }
+
+    /// All cups starting at `cup`.
+    fn cups_from(&self, cup: Label) -> Vec<Label> {
+        let mut cups = vec![cup];
+
+        let mut next = self.next_cup(cup);
+        while next != cup {
+            cups.push(next);
+            next = self.next_cup(next);
+        }
+
+        cups
+    }
+
+    /// Remove `n` cups immediately clockwise of `cup`.
+    fn remove(&mut self, cup: Label, n: usize) -> Vec<Label> {
+        let mut cups = Vec::new();
+
+        let mut next = self.next_cup(cup);
+        for _ in 0..n {
+            cups.push(next);
+            next = self.next_cup(next);
+        }
+
+        self.next.insert(cup, next);
+
+        cups
+    }
 }
 
 #[cfg(test)]
