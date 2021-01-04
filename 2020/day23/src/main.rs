@@ -2,19 +2,21 @@ use std::path::Path;
 use std::fs;
 use std::collections::HashMap;
 
-type Label = u32;
+type Label = u64;
 
 fn main() {
     let cups = read_input("input.txt");
 
     println!("Part 1: {}", cups_as_string(&part1(&cups, 100)));
+
+    println!("Part 2: {}", part2(&cups, 10_000_000).into_iter().product::<u64>());
 }
 
 fn read_input<T: AsRef<Path>>(path: T) -> Vec<Label> {
     let input = fs::read_to_string(path).expect("Failed to read input");
 
     input.trim().chars()
-        .map(|c| c.to_digit(10).expect("Failed to parse number"))
+        .map(|c| c.to_digit(10).expect("Failed to parse number") as Label)
         .collect()
 }
 
@@ -40,7 +42,7 @@ fn part1(cups: &[Label], turns: usize) -> Vec<Label> {
         loop {
             destination -= 1;
             if destination == 0 {
-                destination = cups.len() as u32;
+                destination = cups.len() as Label;
             }
 
             if !pickup.contains(&destination) {
@@ -60,6 +62,42 @@ fn part1(cups: &[Label], turns: usize) -> Vec<Label> {
     println!("cups: {:?}", circle.cups_from(current));
 
     circle.cups_from(1).into_iter().skip(1).collect()
+}
+
+fn part2(cups: &[Label], turns: usize) -> Vec<Label> {
+    let cups: Vec<_> = cups.iter().copied().chain(10..=1_000_000).collect();
+    let mut circle = CupCircle::new(&cups);
+
+    // First cup is the current cup
+    let mut current = cups[0];
+
+    for _ in 1..=turns {
+        // Pick up 3 cups immediately clockwise of the current cup
+        // These are removed from the circle.
+        let pickup = circle.remove(current, 3);
+
+        // Select a destination cup - the one with label minus 1
+        // Skip cups that have been picked up and the labels wrap around
+        let mut destination = current;
+        loop {
+            destination -= 1;
+            if destination == 0 {
+                destination = cups.len() as Label;
+            }
+
+            if !pickup.contains(&destination) {
+                break;
+            }
+        }
+
+        // Place the picked up cups immediately clockwise of the destination cup
+        circle.insert(destination, pickup);
+
+        // Select a new current cup - the one immediately clockwise of the current cup
+        current = circle.next_cup(current);
+    }
+
+    circle.cups_from(1).into_iter().skip(1).take(2).collect()
 }
 
 fn cups_as_string(cups: &[Label]) -> String {
@@ -128,9 +166,17 @@ mod tests {
 
     #[test]
     fn test_part1() {
-        let input = read_input("sample1.txt");
-        assert_eq!(part1(&input, 10), [9, 2, 6, 5, 8, 3, 7, 4]);
-        assert_eq!(part1(&input, 100), [6, 7, 3, 8, 4, 5, 2, 9]);
+        let cups = read_input("sample1.txt");
+        assert_eq!(part1(&cups, 10), [9, 2, 6, 5, 8, 3, 7, 4]);
+        assert_eq!(part1(&cups, 100), [6, 7, 3, 8, 4, 5, 2, 9]);
+    }
+
+    #[test]
+    fn test_part2() {
+        let cups = read_input("sample1.txt");
+        let result = part2(&cups, 10_000_000);
+        assert_eq!(result, [934001, 159792]);
+        assert_eq!(result.into_iter().product::<u64>(), 149245887792);
     }
 }
 
