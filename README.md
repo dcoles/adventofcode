@@ -1,4 +1,4 @@
-# Advent of Code 🎄
+# Advent of Code 🌟
 
 My solutions to [Advent of Code](http://adventofcode.com/).
 
@@ -7,8 +7,8 @@ These are mostly written in [Rust](https://www.rust-lang.org/).
 I can also be found on Twitter: [@davidcoles](https://twitter.com/davidcoles)
 
 ## Solutions
-- [2017](2017) (partially complete)
-- [2018](2018) 🌟
-- [2019](2019) 🌟
-- [2020](2020) (partially complete)
-- [2021](2021) (partially complete)
+- [Advent of Code 2021](2021): In progress!
+- [Advent of Code 2020](2020): 48⭐
+- [Advent of Code 2018](2018): 50⭐!
+- [Advent of Code 2019](2019): 50⭐!
+- [Advent of Code 2017](2017): 26⭐
