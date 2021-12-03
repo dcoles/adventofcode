@@ -2,10 +2,11 @@
 /// https://adventofcode.com/2021/day/3
 
 use std::fs;
+use std::io;
 use std::ops::Index;
 use std::path::Path;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> io::Result<()> {
     let input = read_input_from_file("day03/input.txt")?;
 
     // Part 1
@@ -19,7 +20,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn read_input_from_file(path: impl AsRef<Path>) -> anyhow::Result<Vec<BitString>> {
+fn read_input_from_file(path: impl AsRef<Path>) -> io::Result<Vec<BitString>> {
     let input = fs::read_to_string(path)?;
 
     Ok(input.lines().map(BitString::from_str).collect())

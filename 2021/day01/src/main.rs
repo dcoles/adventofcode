@@ -2,9 +2,10 @@
 /// https://adventofcode.com/2021/day/1
 
 use std::fs;
+use std::io;
 use std::path::Path;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> io::Result<()> {
     let input = read_input_from_file("day01/input.txt")?;
 
     // Part 1
@@ -16,7 +17,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn read_input_from_file(path: impl AsRef<Path>) -> anyhow::Result<Vec<i32>> {
+fn read_input_from_file(path: impl AsRef<Path>) -> io::Result<Vec<i32>> {
     let input = fs::read_to_string(path)?;
     let values: Vec<i32> = input.lines()
         .map(|line| line.parse().unwrap())
