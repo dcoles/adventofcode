@@ -8,7 +8,7 @@ I can also be found on Twitter: [@davidcoles](https://twitter.com/davidcoles)
 
 ## Solutions
 - [Advent of Code 2021](2021): 50⭐!
-- [Advent of Code 2020](2020): 48⭐
+- [Advent of Code 2020](2020): 50⭐!
 - [Advent of Code 2019](2019): 50⭐!
 - [Advent of Code 2018](2018): 50⭐!
 - [Advent of Code 2017](2017): 26⭐
