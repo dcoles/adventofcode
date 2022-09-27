@@ -9,9 +9,6 @@ use std::collections::{VecDeque, HashSet};
 
 use crate::util::sleep;
 
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 const WIDTH: usize = 300;
 const OFFSET: usize = 300;
 const SPRING: (usize, usize) = (500, 0);
