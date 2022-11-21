@@ -1,0 +1,10 @@
+{
+  "name": "day17",
+  "version": "0.1.0",
+  "files": [
+    "day17_bg.wasm",
+    "day17.js"
+  ],
+  "module": "day17.js",
+  "sideEffects": false
+}
