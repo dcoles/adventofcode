@@ -6,8 +6,7 @@ use std::io;
 use std::path::Path;
 
 fn main() {
-    let input = Input::from_file("template/input.txt").expect("failed to read input");
-    println!("{:?}", input);
+    let input = Input::from_file("input.txt").expect("failed to read input");
 
     // Part 1
     println!("Part 1: {}", part1(&input));
@@ -16,17 +15,26 @@ fn main() {
     println!("Part 2: {}", part2(&input));
 }
 
-fn part1(_input: &Input) -> usize {
-    0
+fn part1(input: &Input) -> usize {
+    // Find the Elf carrying the most Calories.
+    let max = *input.values.iter().max().unwrap();
+
+    // How many total Calories is that Elf carrying?
+    *input.values.iter().find(|&&n| n == max).unwrap()
 }
 
-fn part2(_input: &Input) -> usize {
-    0
+fn part2(input: &Input) -> usize {
+    // Find the top three Elves carrying the most Calories.
+    let mut values = input.values.clone();
+    values.sort();
+
+    // How many Calories are those Elves carrying in total?
+    values.iter().rev().take(3).sum::<usize>()
 }
 
 #[derive(Debug, Clone)]
 struct Input {
-    values: Vec<String>,
+    values: Vec<usize>,
 }
 
 impl Input {
@@ -34,9 +42,17 @@ impl Input {
         let input = fs::read_to_string(path)?;
 
         let mut values = Vec::new();
-        for line in input.lines() {
-            values.push(line.to_string());
+
+        for elf in input.split("\n\n") {
+            let mut calories = 0;
+
+            for item in elf.split_ascii_whitespace() {
+                calories += item.parse::<usize>().unwrap();
+            }
+
+            values.push(calories);
         }
+
 
         Ok(Input { values })
     }
@@ -48,11 +64,15 @@ mod test {
 
     #[test]
     fn test_part1() {
-        todo!();
+        let input = Input::from_file("example1.txt").expect("failed to read example1.txt");
+
+        assert_eq!(part1(&input), 24000);
     }
 
     #[test]
     fn test_part2() {
-        todo!();
+        let input = Input::from_file("example1.txt").expect("failed to read example1.txt");
+
+        assert_eq!(part2(&input), 45000);
     }
 }
