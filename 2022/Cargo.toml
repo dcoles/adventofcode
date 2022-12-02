@@ -25,6 +25,5 @@ members = [
     #"day23",
     #"day24",
     #"day25",
-    "template",
 ]
 resolver = "2"
