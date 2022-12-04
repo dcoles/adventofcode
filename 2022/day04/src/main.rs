@@ -3,11 +3,11 @@
 
 use std::fs;
 use std::io;
+use std::ops::RangeInclusive;
 use std::path::Path;
 
 fn main() {
-    let input = Input::from_file("dayXX/input.txt").expect("failed to read input");
-    println!("{:?}", input);
+    let input = Input::from_file("day04/input.txt").expect("failed to read input");
 
     // Part 1
     println!("Part 1: {}", part1(&input));
@@ -16,17 +16,33 @@ fn main() {
     println!("Part 2: {}", part2(&input));
 }
 
-fn part1(_input: &Input) -> usize {
-    0
+fn part1(input: &Input) -> usize {
+    // In how many assignment pairs does one range fully contain the other?
+    input.values.iter()
+        .filter(|(r1, r2)| range_contains(r1, r2) || range_contains(r2, r1))
+        .count()
 }
 
-fn part2(_input: &Input) -> usize {
-    0
+/// Does one range contain another.
+fn range_contains(range: &RangeInclusive<usize>, other: &RangeInclusive<usize>) -> bool {
+    range.start() <= other.start() && range.end() >= other.end()
+}
+
+fn part2(input: &Input) -> usize {
+    // In how many assignment pairs do the ranges overlap?
+    input.values.iter()
+        .filter(|(r1, r2)| range_overlaps(r1, r2))
+        .count()
+}
+
+/// Do two ranges overlap at all?
+fn range_overlaps(range: &RangeInclusive<usize>, other: &RangeInclusive<usize>) -> bool {
+    range.end() >= other.start() && range.start() <= other.end()
 }
 
 #[derive(Debug, Clone)]
 struct Input {
-    values: Vec<String>,
+    values: Vec<(RangeInclusive<usize>, RangeInclusive<usize>)>,
 }
 
 impl Input {
@@ -35,11 +51,23 @@ impl Input {
 
         let mut values = Vec::new();
         for line in input.lines() {
-            values.push(line.to_string());
+            let (a, b) = line.split_once(',').unwrap();
+
+            let a = parse_range(a);
+            let b = parse_range(b);
+            values.push((a, b));
         }
 
         Ok(Input { values })
     }
+}
+
+/// Parse an inclusive range of the format `start-end`.
+fn parse_range(s: &str) -> RangeInclusive<usize> {
+    let (s1, s2) = s.split_once('-').unwrap();
+    let (s1, s2) = (s1.parse().expect("unable to parse range start"), s2.parse().expect("unable to parse range end"));
+
+    s1..=s2
 }
 
 #[cfg(test)]
@@ -48,11 +76,15 @@ mod test {
 
     #[test]
     fn test_part1() {
-        todo!();
+        let input = Input::from_file("example1.txt").expect("failed to read input");
+
+        assert_eq!(part1(&input), 2);
     }
 
     #[test]
     fn test_part2() {
-        todo!();
+        let input = Input::from_file("example1.txt").expect("failed to read input");
+
+        assert_eq!(part2(&input), 4);
     }
 }
