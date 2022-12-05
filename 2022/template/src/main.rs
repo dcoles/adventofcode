@@ -6,7 +6,7 @@ use std::io;
 use std::path::Path;
 
 fn main() {
-    let input = Input::from_file("dayXX/input.txt").expect("failed to read input");
+    let input = Input::from_file(format!("{}/input.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
     println!("{:?}", input);
 
     // Part 1
