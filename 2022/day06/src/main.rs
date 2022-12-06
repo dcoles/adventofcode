@@ -1,6 +1,7 @@
 //! Advent of Code 2022: Day 6
 //! https://adventofcode.com/2022/day/6
 
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -19,18 +20,8 @@ fn part1(datastream: &str) -> usize {
     let len = datastream.len();
 
     for i in 0..len-3 {
-        let window: Vec<char> = datastream.chars().skip(i).take(4).collect();
-
-        let mut found = true;
-        for j in 0..4 {
-            for k in j + 1 .. 4 {
-                if window[j] == window[k] {
-                    found = false;
-                }
-            }
-        }
-
-        if found {
+        let chars: HashSet<char> = datastream.chars().skip(i).take(4).collect();
+        if chars.len() == 4 {
             return i + 4;
         }
     }
@@ -42,18 +33,8 @@ fn part2(datastream: &str) -> usize {
     let len = datastream.len();
 
     for i in 0..len-13 {
-        let window: Vec<char> = datastream.chars().skip(i).take(14).collect();
-
-        let mut found = true;
-        for j in 0..14 {
-            for k in j + 1 .. 14 {
-                if window[j] == window[k] {
-                    found = false;
-                }
-            }
-        }
-
-        if found {
+        let chars: HashSet<char> = datastream.chars().skip(i).take(14).collect();
+        if chars.len() == 14 {
             return i + 14;
         }
     }
