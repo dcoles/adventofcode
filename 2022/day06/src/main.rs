@@ -7,38 +7,70 @@ use std::path::Path;
 
 fn main() {
     let input = Input::from_file(format!("{}/input.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
-    println!("{:?}", input);
 
     // Part 1
-    println!("Part 1: {}", part1(&input));
+    println!("Part 1: {}", part1(&input.datastream));
 
     // Part 2
-    println!("Part 2: {}", part2(&input));
+    println!("Part 2: {}", part2(&input.datastream));
 }
 
-fn part1(_input: &Input) -> usize {
+fn part1(datastream: &str) -> usize {
+    let len = datastream.len();
+
+    for i in 0..len-3 {
+        let window: Vec<char> = datastream.chars().skip(i).take(4).collect();
+
+        let mut found = true;
+        for j in 0..4 {
+            for k in j + 1 .. 4 {
+                if window[j] == window[k] {
+                    found = false;
+                }
+            }
+        }
+
+        if found {
+            return i + 4;
+        }
+    }
+
     0
 }
 
-fn part2(_input: &Input) -> usize {
+fn part2(datastream: &str) -> usize {
+    let len = datastream.len();
+
+    for i in 0..len-13 {
+        let window: Vec<char> = datastream.chars().skip(i).take(14).collect();
+
+        let mut found = true;
+        for j in 0..14 {
+            for k in j + 1 .. 14 {
+                if window[j] == window[k] {
+                    found = false;
+                }
+            }
+        }
+
+        if found {
+            return i + 14;
+        }
+    }
+
     0
 }
 
 #[derive(Debug, Clone)]
 struct Input {
-    values: Vec<String>,
+    datastream: String,
 }
 
 impl Input {
     fn from_file(path: impl AsRef<Path>) -> io::Result<Self> {
-        let input = fs::read_to_string(path)?;
+        let datastream = fs::read_to_string(path)?;
 
-        let mut values = Vec::new();
-        for line in input.lines() {
-            values.push(line.to_string());
-        }
-
-        Ok(Input { values })
+        Ok(Input { datastream })
     }
 }
 
@@ -48,11 +80,18 @@ mod test {
 
     #[test]
     fn test_part1() {
-        todo!();
+        assert_eq!(part1("bvwbjplbgvbhsrlpgdmjqwftvncz"), 5);
+        assert_eq!(part1("nppdvjthqldpwncqszvftbrmjlhg"), 6);
+        assert_eq!(part1("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg"), 10);
+        assert_eq!(part1("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw"), 11);
     }
 
     #[test]
     fn test_part2() {
-        todo!();
+        assert_eq!(part2("mjqjpqmgbljsphdztnvjfqwrcgsmlb"), 19);
+        assert_eq!(part2("bvwbjplbgvbhsrlpgdmjqwftvncz"), 23);
+        assert_eq!(part2("nppdvjthqldpwncqszvftbrmjlhg"), 23);
+        assert_eq!(part2("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg"), 29);
+        assert_eq!(part2("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw"), 26);
     }
 }
