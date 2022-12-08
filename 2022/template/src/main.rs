@@ -48,11 +48,15 @@ mod test {
 
     #[test]
     fn test_part1() {
-        todo!();
+        let input = Input::from_file("example1.txt").unwrap();
+
+        assert_eq!(part1(&input), 0);
     }
 
     #[test]
     fn test_part2() {
-        todo!();
+        let input = Input::from_file("example1.txt").unwrap();
+
+        assert_eq!(part2(&input), 0);
     }
 }
