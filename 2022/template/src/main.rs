@@ -16,11 +16,11 @@ fn main() {
     println!("Part 2: {}", part2(&input));
 }
 
-fn part1(_input: &Input) -> usize {
+fn part1(input: &Input) -> usize {
     0
 }
 
-fn part2(_input: &Input) -> usize {
+fn part2(input: &Input) -> usize {
     0
 }
 
