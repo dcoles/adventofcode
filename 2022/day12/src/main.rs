@@ -20,7 +20,12 @@ fn part1(input: &Input) -> usize {
     let mut best: HashMap<(usize, usize), usize> = [(input.start, 0)].into_iter().collect();
     let mut edge = vec![input.start];
 
+    // Use A* search
     while let Some(pos) = edge.pop() {
+        if pos == input.end {
+            break;
+        }
+
         for neighbour in input.neighbour(pos) {
             let steps = best[&pos] + 1;
             if best.get(&neighbour).map(|best| steps < *best).unwrap_or(true) {
@@ -28,6 +33,8 @@ fn part1(input: &Input) -> usize {
                 edge.push(neighbour);
             }
         }
+
+        edge.sort_by(|a, b| best[b].cmp(&best[a]));
     }
 
     // What is the fewest steps required to move from your current position
@@ -42,7 +49,12 @@ fn part2(input: &Input) -> usize {
     let mut best: HashMap<(usize, usize), usize> = starting_locations.iter().cloned().map(|p| (p, 0)).collect();
     let mut edge = starting_locations.clone();
 
+    // Use A* search
     while let Some(pos) = edge.pop() {
+        if pos == input.end {
+            break;
+        }
+
         for neighbour in input.neighbour(pos) {
             let steps = best[&pos] + 1;
             if best.get(&neighbour).map(|best| steps < *best).unwrap_or(true) {
@@ -50,6 +62,8 @@ fn part2(input: &Input) -> usize {
                 edge.push(neighbour);
             }
         }
+
+        edge.sort_by(|a, b| best[b].cmp(&best[a]));
     }
 
     // What is the fewest steps required to move starting from any square
