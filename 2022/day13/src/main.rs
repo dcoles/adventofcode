@@ -31,7 +31,7 @@ fn part1(input: &Input) -> usize {
         println!("{:?}", right);
         println!();
 
-        if check(&left, &right) == Check::Correct {
+        if left < right {
             correct.push(index);
         }
     }
@@ -42,127 +42,30 @@ fn part1(input: &Input) -> usize {
 fn part2(input: &Input) -> usize {
     let mut packets = input.values.clone();
 
-    // Divider packets
-    packets.push(Item::List(vec![Item::List(vec![Item::Value(2)])]));
-    packets.push(Item::List(vec![Item::List(vec![Item::Value(6)])]));
+    let divider2: Item = "[[2]]".parse().unwrap();
+    let divider6: Item = "[[6]]".parse().unwrap();
 
-    packets.sort_by(|left, right| match check(left, right) {
-        Check::Correct => Ordering::Less,
-        Check::Incorrect => Ordering::Greater,
-        Check::Inconclusive => Ordering::Equal,
-    });
+    // Divider packets
+    packets.push(divider2.clone());
+    packets.push(divider6.clone());
+
+    packets.sort();
 
     packets.into_iter()
         .enumerate()
-        .filter(|(_, p)| is_divider(p))
+        .filter(|(_, p)| *p == divider2 || *p == divider6 )
         .map(|(i, _)| i + 1)
         .product()
 }
 
-/// Is this a Divider packet (`[[2]]` or `[[6]]`)
-fn is_divider(packet: &Item) -> bool {
-    if let Item::List(l1) = packet {
-        if l1.len() != 1 {
-            return false;
-        }
-
-        if let Item::List(l2) = &l1[0] {
-            if l2.len() != 1 {
-                return false;
-            }
-
-            if let Item::Value(v) = &l2[0] {
-                return *v == 2 || *v == 6
-            }
-        }
-    }
-
-    return false;
-}
-
-/// Order packets
-fn check(left: &Item, right: &Item) -> Check {
-    match (left, right) {
-        (Item::List(ls), Item::List(rs)) => {
-            for i in 0.. {
-                if i == ls.len() && i == rs.len() {
-                    // Ran out of items in both lists
-                    return Check::Inconclusive;
-                } else if i == ls.len() {
-                    // Left list runs out of items
-                    return Check::Correct
-                } else if i == rs.len() {
-                    // Right list runs out of items
-                    return Check::Incorrect
-                } else {
-                    // Check each item
-                    let c = check(&ls[i], &rs[i]);
-
-                    if c.conclusive() {
-                        return c;
-                    }
-                }
-            }
-
-            unreachable!();
-        },
-        (Item::List(_), Item::Value(r)) => {
-            // Convert integer to a list
-            let mut rs = Item::list();
-            rs.push(Item::Value(*r));
-
-            check(left, &rs)
-        },
-        (Item::Value(l), Item::List(_)) => {
-            // Convert integer to a list
-            let mut ls = Item::list();
-            ls.push(Item::Value(*l));
-
-            check(&ls, right)
-        },
-        (Item::Value(l), Item::Value(r)) => {
-            if l < r {
-                // Left integer lower than right
-                Check::Correct
-            } else if l > r {
-                // Left integer higher than right
-                Check::Incorrect
-            } else {
-                // Check next part
-                Check::Inconclusive
-            }
-        },
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Check {
-    Correct,
-    Incorrect,
-    Inconclusive,
-}
-
-impl Check {
-    fn conclusive(self) -> bool {
-        !matches!(self, Check::Inconclusive)
-    }
-}
-
-#[derive(Clone)]
+/// An Item (either a List or a Value).
+#[derive(Clone, PartialEq, Eq, Ord)]
 enum Item {
     List(Vec<Item>),
     Value(u64),
 }
 
 impl Item {
-    fn list() -> Self {
-        Item::List(Vec::new())
-    }
-
-    fn value(x: u64) -> Self {
-        Item::Value(x)
-    }
-
     fn push(&mut self, item: Item) -> &mut Item {
         match self {
             Item::List(xs) => {
@@ -171,6 +74,60 @@ impl Item {
                 xs.last_mut().unwrap()
             }
             _ => panic!("Tried to push to a value"),
+        }
+    }
+}
+
+impl PartialOrd for Item {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Item::List(ls), Item::List(rs)) => {
+                for i in 0.. {
+                    if i == ls.len() && i == rs.len() {
+                        // Ran out of items in both lists
+                        return Some(Ordering::Equal);
+                    } else if i == ls.len() {
+                        // Left list runs out of items
+                        return Some(Ordering::Less);
+                    } else if i == rs.len() {
+                        // Right list runs out of items
+                        return Some(Ordering::Greater)
+                    } else {
+                        // Check each item
+                        let ord = ls[i].partial_cmp(&rs[i]);
+
+                        if !matches!(ord, Some(Ordering::Equal)) {
+                            return ord;
+                        }
+                    }
+                }
+
+                unreachable!();
+            },
+            (Item::List(_), Item::Value(r)) => {
+                // Convert integer to a list
+                let rs = Item::List(vec![Item::Value(*r)]);
+
+                self.partial_cmp(&rs)
+            },
+            (Item::Value(l), Item::List(_)) => {
+                // Convert integer to a list
+                let ls = Item::List(vec![Item::Value(*l)]);
+
+                ls.partial_cmp(other)
+            },
+            (Item::Value(l), Item::Value(r)) => {
+                if l < r {
+                    // Left integer lower than right
+                    Some(Ordering::Less)
+                } else if l > r {
+                    // Left integer higher than right
+                    Some(Ordering::Greater)
+                } else {
+                    // Check next part
+                    Some(Ordering::Equal)
+                }
+            },
         }
     }
 }
@@ -184,13 +141,13 @@ impl FromStr for Item {
         let mut value = None;
         for c in s.chars() {
             if value.is_some() && !c.is_ascii_digit() {
-                stack.last_mut().unwrap().push(Item::value(value.unwrap()));
+                stack.last_mut().unwrap().push(Item::Value(value.unwrap()));
                 value = None;
             }
 
             match c {
                 '[' => {
-                    stack.push(Item::list());
+                    stack.push(Item::List(vec![]));
                 },
                 ']' => {
                     let item = stack.pop().unwrap();
