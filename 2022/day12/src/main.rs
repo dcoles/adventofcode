@@ -3,11 +3,16 @@
 
 use std::collections::HashMap;
 use std::fs;
+use std::fs::File;
 use std::io;
+use std::io::Write;
 use std::path::Path;
 
 fn main() {
     let input = Input::from_file(format!("{}/input.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
+
+    let mut pgm = File::create(format!("{}/height.pgm", env!("CARGO_MANIFEST_DIR"))).expect("failed to open height.pgm for writing");
+    input.save_pgm(&mut pgm).expect("Failed to write height.pgm");
 
     // Part 1
     println!("Part 1: {}", part1(&input));
@@ -133,6 +138,21 @@ impl Input {
         }
 
         neighbours
+    }
+
+    /// Save map as Portable Gray Map.
+    fn save_pgm(&self, f: &mut File) -> io::Result<()> {
+        writeln!(f, "P2")?;
+        writeln!(f, "{} {}", self.width, self.height).unwrap();
+        writeln!(f, "26")?;
+        for y in 0..self.height {
+            for x in 0..self.width {
+                write!(f, "{} ", self.map[&(x, y)])?;
+            }
+            writeln!(f)?;
+        }
+
+        Ok(())
     }
 }
 
