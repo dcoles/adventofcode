@@ -1,0 +1,10 @@
+{
+  "name": "day14",
+  "version": "0.1.0",
+  "files": [
+    "day14_bg.wasm",
+    "day14.js"
+  ],
+  "module": "day14.js",
+  "sideEffects": false
+}
