@@ -26,4 +26,7 @@ members = [
     #"day24",
     #"day25",
 ]
+exclude = [
+    "wasm/day14",
+]
 resolver = "2"
