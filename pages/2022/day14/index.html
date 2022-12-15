@@ -6,10 +6,42 @@
   <link href="//fonts.googleapis.com/css?family=Source+Code+Pro:300&subset=latin,latin-ext" rel="stylesheet" type="text/css">
   <link href="css/style.css" rel="stylesheet">
   <script type="module">
-      import init from './pkg/day14.js';
+    import init from './pkg/day14.js';
+    import * as wasm from './pkg/day14.js';
 
-      init();
+    init();
+
+    function handleFiles(files) {
+      if (!files.length) {
+        return;
+      }
+
+      const input = document.getElementById("input");
+      input.remove();
+
+      let reader = new FileReader();
+      reader.onload = async evt => {
+        await wasm.run(evt.target.result);
+      }
+      reader.readAsText(files[0]);
+    }
+
+    document.handleFiles = handleFiles;
   </script>
+  <style>
+    .file {
+      color: #009900;
+    }
+    .file:hover, .file:focus {
+      color: #99ff99;
+    }
+    canvas {
+      border: solid 1px #666666;
+    }
+    blockquote {
+      font-style: italic;
+    }
+  </style>
 </head>
 <body>
 <header>
@@ -18,8 +50,11 @@
 <main>
   <article>
     <h2>Day 14: <a href="https://adventofcode.com/2022/day/14">Regolith Reservoir</a></h2>
-    <canvas id="canvas" width="1000" height="500"></canvas>
-    <textarea id="console" disabled style="width: 1000px;"></textarea>
+    <blockquote>As you begin to make your way deeper underground, you feel the ground rumble for a moment. Sand begins pouring into the cave! If you don't quickly figure out where the sand is going, you could quickly become trapped!</blockquote>
+    <p style="font-weight: bold;">Visual simulation</p>
+    <canvas id="canvas" width="1000" height="400"></canvas>
+    <p>&gt; <span id="input">Upload: <label class="file">[File]<input accept=".txt" type="file" onchange="handleFiles(this.files)" style="display: none;"></label> (Sample: <a href="input.txt">input.txt</a>)</span></p>
+    <textarea rows="5" id="console" disabled style="width: 1000px;"></textarea>
   </article>
 </main>
 </body>

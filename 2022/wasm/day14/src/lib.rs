@@ -1,11 +1,11 @@
 //! Advent of Code 2022: Day 14
 //! https://adventofcode.com/2022/day/14
 
-mod input;
 mod page;
 mod util;
 
 use std::collections::HashMap;
+use std::io;
 use std::time::Duration;
 
 use wasm_bindgen::{prelude::*, Clamped};
@@ -14,14 +14,20 @@ use web_sys::ImageData;
 use crate::util::sleep;
 
 const WIDTH: usize = 1000;
-const HEIGHT: usize = 500;
+const HEIGHT: usize = 400;
 const SAND: char = 'o';
 const ROCK: char = '#';
 const SOURCE: (usize, usize) = (500, 0);
 
-#[wasm_bindgen(start)]
-pub async fn main() {
-    let map = read_input();
+#[wasm_bindgen]
+pub async fn run(input: String) {
+    let map = match read_input(&input) {
+        Err(err) => {
+            log!("ERROR: Failed to parse input: {}", err);
+            return;
+        },
+        Ok(m) => m,
+    };
 
     simulate(&map).await;
 }
@@ -126,11 +132,11 @@ fn set_pixel(data: &mut [u8], (x, y): (usize, usize), color: u32) {
 }
 
 /// Read input
-fn read_input() -> HashMap<(usize, usize), char> {
+fn read_input(input: &str) -> io::Result<HashMap<(usize, usize), char>> {
     let mut map = HashMap::new();
 
-    for line in input::INPUT.lines() {
-        let trace = parse_line(&line);
+    for line in input.lines() {
+        let trace = parse_line(&line)?;
 
         for window in trace.windows(2) {
             let (x1, y1) = window[0];
@@ -144,16 +150,21 @@ fn read_input() -> HashMap<(usize, usize), char> {
         }
     }
 
-    map
+    Ok(map)
 }
 
 /// Parse input of the format `x,y -> x,y -> x,y`.
-fn parse_line(line: &str) -> Vec<(usize, usize)> {
-    line.split(" -> ")
-        .map(|value| {
-            let (x, y) = value.split_once(",").unwrap();
-            
-            (x.parse().unwrap(), y.parse().unwrap())
-        })
-        .collect()
+fn parse_line(line: &str) -> io::Result<Vec<(usize, usize)>> {
+    let mut path = Vec::new();
+
+    for value in line.split(" -> ") {
+        let (x, y) = value.split_once(",").ok_or_else(|| io::Error::new(io::ErrorKind::Other, "failed to parse coordinate"))?;
+
+        let x = x.parse().map_err(|_| io::Error::new(io::ErrorKind::Other, format!("not a number {:?}", x)))?;
+        let y = y.parse().map_err(|_| io::Error::new(io::ErrorKind::Other, format!("not a number {:?}", y)))?;
+
+        path.push((x, y));
+    }
+
+    Ok(path)
 }
