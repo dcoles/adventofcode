@@ -17,10 +17,8 @@ fn main() {
 
 fn part1(input: &Input) -> usize {
     // Find the Elf carrying the most Calories.
-    let max = *input.values.iter().max().unwrap();
-
     // How many total Calories is that Elf carrying?
-    *input.values.iter().find(|&&n| n == max).unwrap()
+    *input.values.iter().max().unwrap()
 }
 
 fn part2(input: &Input) -> usize {
