@@ -102,9 +102,23 @@ mod test {
     }
 
     #[test]
+    fn test_part1_solution() {
+        let input = Input::from_file("input.txt").unwrap();
+
+        assert_eq!(part1(&input), 2913);
+    }
+
+    #[test]
     fn test_part2_example1() {
         let input = Input::from_file("example1.txt").unwrap();
 
         assert_eq!(part2(&input), 2286);
+    }
+
+    #[test]
+    fn test_part2_solution() {
+        let input = Input::from_file("input.txt").unwrap();
+
+        assert_eq!(part2(&input), 55593);
     }
 }
