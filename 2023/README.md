@@ -10,4 +10,5 @@ cargo run --bin day01
 
 ## Solutions
 
-None yet!
+1. [Trebuchet?!](day01) 🌟🌟
+2. [Cube Conundrum](day02) 🌟🌟
