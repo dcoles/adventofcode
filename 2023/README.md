@@ -12,3 +12,4 @@ cargo run --bin day01
 
 1. [Trebuchet?!](day01) 🌟🌟
 2. [Cube Conundrum](day02) 🌟🌟
+3. [Gear Ratios](day03) 🌟🌟
