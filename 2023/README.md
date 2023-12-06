@@ -14,3 +14,4 @@ cargo run --bin day01
 2. [Cube Conundrum](day02) 🌟🌟
 3. [Gear Ratios](day03) 🌟🌟
 4. [Scratchcards](day04) 🌟🌟
+4. [If You Give A Seed A Fertilizer](day05) 🌟🌟
