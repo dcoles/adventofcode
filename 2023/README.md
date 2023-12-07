@@ -16,3 +16,4 @@ cargo run --bin day01
 4. [Scratchcards](day04) 🌟🌟
 5. [If You Give A Seed A Fertilizer](day05) 🌟🌟
 6. [Wait For It](day06) 🌟🌟
+7. [Camel Cards](day07) 🌟🌟
