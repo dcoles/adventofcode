@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
+use std::ops::Range;
 use std::path::Path;
 
 // Mappings
@@ -19,18 +20,18 @@ fn main() {
     println!("Part 2: {}", part2(&input));
 }
 
-fn part1(input: &Input) -> u64 {
-    const CONV: [&str; 8] = ["seed", "soil", "fertilizer", "water", "light", "temperature", "humidity", "location"];
-
+fn part1(input: &Input) -> i64 {
     let mut positions = Vec::new();
+
     for &seed in &input.seeds {
         let mut value = seed;
-        for i in 0..(CONV.len() - 1) {
-            let from_to = (CONV[i].to_owned(), CONV[i + 1].to_owned());
+        for window in CONV.windows(2) {
+            let from_to = (window[0].to_owned(), window[1].to_owned());
 
-            for &(source_start, dest_start, len) in &input.mappings[&from_to] {
-                if value >= source_start && value < (source_start + len) {
-                    value = value + dest_start - source_start;
+            for (source_range, dest_range) in &input.mappings[&from_to] {
+                if value >= source_range.start && value < source_range.end {
+                    value = value + (dest_range.start - source_range.start);
+                    println!("{value}");
                     break;
                 }
             }
@@ -39,64 +40,69 @@ fn part1(input: &Input) -> u64 {
         positions.push(value);
     }
 
+    // Find the minimum
     positions.into_iter().min().unwrap()
 }
 
-fn part2(input: &Input) -> u64 {
-
-    let mut ranges = Vec::new();
+fn part2(input: &Input) -> i64 {
+    // Initial seed ranges
+    let mut seed_ranges = Vec::new();
     for i in 0..input.seeds.len() / 2 {
         let start = input.seeds[2 * i];
         let len = input.seeds[2 * i + 1];
 
-        ranges.push((start, len));
+        seed_ranges.push(start..(start + len));
     }
 
-    for i in 0..(CONV.len() - 1) {
-        let from_to = (CONV[i].to_owned(), CONV[i + 1].to_owned());
+    let mut ranges = seed_ranges.clone();
 
-        let mut next_ranges = Vec::new();
-        for range in ranges {
-            let mut start = range.0;
-            let mut len = range.1;
+    // Apply the mappings
+    for window in CONV.windows(2) {
+        let (conv_from, conv_to) = (window[0].to_owned(), window[1].to_owned());
+        let mappings = &input.mappings[&(conv_from, conv_to)];
 
-            for &(source_start, dest_start, range_len) in &input.mappings[&from_to] {
-                if start < source_start {
-                    let temp_len = len.min(source_start - start);
-                    if temp_len > 0 {
-                        next_ranges.push((start, temp_len));
-                    }
+        ranges = ranges.into_iter().flat_map(|range| {
+            let mut new_ranges = vec![];
 
-                    start += temp_len;
-                    len -= temp_len;
+            let mut start = range.start;
+            for (source_range, dest_range) in mappings {
+                let offset = dest_range.start - source_range.start;
+
+                // Range before mapping (1:1)
+                let mid = range.end.min(source_range.start);
+                if (mid - start) > 0 {
+                    new_ranges.push(start..mid);
+                    start = mid;
                 }
 
-                let source_end = source_start + range_len;
-                if start >= source_start && start < source_end {
-                    let temp_len = len.min(source_end - start);
-                    next_ranges.push((start + dest_start - source_start, temp_len));
-                    start += temp_len;
-                    len -= temp_len;
+                // Overlap
+                let end = range.end.min(source_range.end);
+                if (end - start) > 0 {
+                    new_ranges.push((start + offset)..(end + offset));
+                    start = end;
                 }
+
+                // Range after mapping handled as range before next mapping
             }
 
-            if len > 0 {
-                next_ranges.push((start, len));
+            // Any remainder after last mapping
+            if start < range.end {
+                new_ranges.push(start..range.end);
             }
-        }
 
-        ranges = next_ranges;
+            new_ranges
+        }).collect();
     }
 
-    ranges.into_iter().map(|(a, _)| a).min().unwrap()
+    ranges.into_iter().map(|r| r.start).min().unwrap()
 }
 
 // (source, destination) => (source_range_start, destination_range_start, length)
-type Mapping = BTreeMap<(String, String), Vec<(u64, u64, u64)>>;
+type Mapping = BTreeMap<(String, String), Vec<(Range<i64>, Range<i64>)>>;
 #[derive(Debug, Clone)]
 
 struct Input {
-    seeds: Vec<u64>,
+    seeds: Vec<i64>,
     mappings: Mapping,
 }
 
@@ -105,25 +111,24 @@ impl Input {
         let input = fs::read_to_string(path)?;
 
         let mut block_iter = input.split("\n\n");
-        let seeds: Vec<u64> = block_iter.next().unwrap().split_ascii_whitespace().skip(1).map(|s| s.parse().unwrap()).collect();
+        let seeds: Vec<i64> = block_iter.next().unwrap().split_ascii_whitespace().skip(1).map(|s| s.parse().unwrap()).collect();
 
         let mut mappings: Mapping = BTreeMap::new();
         for block in block_iter {
             let mut line_iter = block.lines();
             let (source, destination) = line_iter.next().unwrap().split_ascii_whitespace().next().unwrap().split_once("-to-").unwrap();
-            println!("{source} {destination}");
             for line in line_iter {
-                let values: Vec<u64> = line.split_ascii_whitespace().map(|s| s.parse().unwrap()).collect();
-                let destination_start = values[0];
-                let source_start = values[1];
-                let length = values[2];
+                let values: Vec<i64> = line.split_ascii_whitespace().map(|s| s.parse().unwrap()).collect();
 
-                mappings.entry((source.to_owned(), destination.to_owned())).or_default().push((source_start, destination_start, length));
+                let source_range = values[1]..(values[1] + values[2]);
+                let destination_range = values[0]..(values[0] + values[2]);
+
+                mappings.entry((source.to_owned(), destination.to_owned())).or_default().push((source_range, destination_range));
             }
         }
 
         for mapping in mappings.values_mut() {
-            mapping.sort();
+            mapping.sort_by_key(|(m, _)| m.start);
         }
 
         Ok(Input { seeds, mappings })
