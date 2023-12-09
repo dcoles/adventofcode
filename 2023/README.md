@@ -18,3 +18,4 @@ cargo run --bin day01
 6. [Wait For It](day06) 🌟🌟
 7. [Camel Cards](day07) 🌟🌟
 8. [Haunted Wasteland](day08) 🌟🌟
+9. [Mirage Maintenance](day09) 🌟🌟
