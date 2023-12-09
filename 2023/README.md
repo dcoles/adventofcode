@@ -17,3 +17,4 @@ cargo run --bin day01
 5. [If You Give A Seed A Fertilizer](day05) 🌟🌟
 6. [Wait For It](day06) 🌟🌟
 7. [Camel Cards](day07) 🌟🌟
+8. [Haunted Wasteland](day08) 🌟🌟
