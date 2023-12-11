@@ -19,3 +19,4 @@ cargo run --bin day01
 7. [Camel Cards](day07) 🌟🌟
 8. [Haunted Wasteland](day08) 🌟🌟
 9. [Mirage Maintenance](day09) 🌟🌟
+11. [Cosmic Expansion](day11) 🌟🌟
