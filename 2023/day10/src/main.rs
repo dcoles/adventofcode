@@ -5,10 +5,6 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::{fs, io};
 use std::path::Path;
 
-// By manual inspection
-const PIPE: Pipe = Pipe::Horizontal;
-const FLOW: Direction = Direction::East;
-
 const CARDINALS: [Direction; 4] = [Direction::North, Direction::South, Direction::East, Direction::West];
 
 fn main() {
@@ -22,10 +18,7 @@ fn main() {
 }
 
 fn part1(input: &Input) -> usize {
-    let mut map = input.map.clone();
-    map.insert(input.start, PIPE);
-
-    let path = follow_pipe(&map, input.start);
+    let path = follow_pipe(&input.map, input.start);
 
     path.len() / 2
 }
@@ -33,7 +26,7 @@ fn part1(input: &Input) -> usize {
 fn follow_pipe(map: &BTreeMap<Pos, Pipe>, start: Pos) -> Vec<Pos> {
     let mut path = vec![start];
     let mut cur = path[0];
-    let mut direction = FLOW;
+    let mut direction = map[&start].directions()[0].complement();
 
     loop {
         let pipe = map.get(path.last().unwrap()).unwrap();
@@ -53,14 +46,10 @@ fn follow_pipe(map: &BTreeMap<Pos, Pipe>, start: Pos) -> Vec<Pos> {
 }
 
 fn part2(input: &Input) -> usize {
-    let mut map = input.map.clone();
-    map.insert(input.start, PIPE);
+    let pipeline: HashSet<_> = follow_pipe(&input.map, input.start).into_iter().collect();
+    let map: BTreeMap<Pos, Pipe> = input.map.iter().filter_map(|(&pos, &pipe)| pipeline.contains(&pos).then_some((pos, pipe))).collect();
 
-    let pipeline: HashSet<_> = follow_pipe(&map, input.start).into_iter().collect();
-
-    let map = map.into_iter().filter(|(p, _)| pipeline.contains(p)).collect();
-
-    let start = (0, 0);
+    let start = (-1, -1);
     let mut seen: BTreeSet<_> = [start].into_iter().collect();
     let mut to_visit = vec![start];
     while let Some(cur) = to_visit.pop() {
@@ -72,7 +61,7 @@ fn part2(input: &Input) -> usize {
                 continue;
             }
 
-            if !(0..input.width).contains(&adj.0) || !(0..input.height).contains(&adj.1) {
+            if !(-1..input.width).contains(&adj.0) || !(-1..input.height).contains(&adj.1) {
                 // Out of bounds
                 continue;
             }
@@ -91,8 +80,8 @@ fn part2(input: &Input) -> usize {
     println!();
 
     let mut n = 0;
-    for y in 0..input.height {
-        for x in 0..input.width {
+    for y in -1..input.height {
+        for x in -1..input.width {
             let pos = (x, y);
 
             let c = if !seen.contains(&pos) {
@@ -219,15 +208,15 @@ impl Pipe {
     // Is there an opening facing this direction?
     const fn is_pointing(self, direction: Direction) -> bool {
         match direction {
-            Direction::West => matches!(self.points(), [Direction::West, _] | [_, Direction::West]),
-            Direction::East => matches!(self.points(), [Direction::East, _] | [_, Direction::East]),
-            Direction::North => matches!(self.points(), [Direction::North, _] | [_, Direction::North]),
-            Direction::South => matches!(self.points(), [Direction::South, _] | [_, Direction::South]),
+            Direction::West => matches!(self.directions(), [Direction::West, _] | [_, Direction::West]),
+            Direction::East => matches!(self.directions(), [Direction::East, _] | [_, Direction::East]),
+            Direction::North => matches!(self.directions(), [Direction::North, _] | [_, Direction::North]),
+            Direction::South => matches!(self.directions(), [Direction::South, _] | [_, Direction::South]),
         }
     }
 
     // What directions does this pipe faces?
-    const fn points(self) -> [Direction; 2] {
+    const fn directions(self) -> [Direction; 2] {
         match self {
             Pipe::Vertical => [Direction::North, Direction::South],
             Pipe::Horizontal => [Direction::East, Direction::West],
@@ -240,7 +229,7 @@ impl Pipe {
 
     // Flowing into this pipe from a direction
     fn flow(self, d: Direction) -> Direction {
-        let directions = self.points();
+        let directions = self.directions();
 
         if d == directions[0].complement() {
             directions[1]
@@ -284,8 +273,25 @@ impl Input {
             height = (y + 1) as i64;
         }
 
+        map.insert(start, guess_pipe(&map, start).unwrap());
+
         Ok(Self { start, map, width, height })
     }
+}
+
+fn guess_pipe(map: &BTreeMap<Pos, Pipe>, pos: Pos) -> Option<Pipe> {
+    for pipe in [Pipe::Horizontal, Pipe::Vertical, Pipe::NEBend, Pipe::NWBend, Pipe::SEBend, Pipe::SWBend] {
+        if pipe.directions().into_iter().all(|direction| is_match(map, pos, direction)) {
+            return Some(pipe);
+        }
+    }
+
+    None
+}
+
+fn is_match(map: &BTreeMap<Pos, Pipe>, pos: Pos, direction: Direction) -> bool {
+    let d = direction.vector();
+    map.get(&(pos.0 + d.0, pos.1 + d.1)).map(|p| p.is_pointing(direction.complement())).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -311,6 +317,20 @@ mod test {
         let input = Input::from_file("input.txt").unwrap();
 
         assert_eq!(part1(&input), 7107);
+    }
+
+    #[test]
+    fn test_part2_example3() {
+        let input = Input::from_file("example3.txt").unwrap();
+
+        assert_eq!(part2(&input), 4);
+    }
+
+    #[test]
+    fn test_part2_example4() {
+        let input = Input::from_file("example4.txt").unwrap();
+
+        assert_eq!(part2(&input), 8);
     }
 
     #[test]
