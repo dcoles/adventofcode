@@ -21,3 +21,4 @@ cargo run --bin day01
 9. [Mirage Maintenance](day09) 🌟🌟
 10. [Pipe Maze](day10) 🌟🌟
 11. [Cosmic Expansion](day11) 🌟🌟
+12. [Hot Springs](day12) 🌟
