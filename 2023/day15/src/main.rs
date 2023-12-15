@@ -1,11 +1,9 @@
 //! Advent of Code 2023: Day 15 "Lens Library"
 //! https://adventofcode.com/2023/day/X
 
-use std::ops::Rem;
+use std::borrow::Borrow;
 use std::{fs, io};
 use std::path::Path;
-
-const N_BOXES: usize = 256;
 
 fn main() {
     let input = Input::from_file(format!("{}/input.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
@@ -22,7 +20,7 @@ fn part1(input: &Input) -> usize {
 }
 
 fn part2(input: &Input) -> u32 {
-    let mut boxes: Vec<Vec<(String, u32)>> = (0..N_BOXES).map(|_| vec![]).collect();
+    let mut hashmap = HashMap::new();
 
     for step in &input.values {
         let (label, value) = if step.ends_with('-') {
@@ -35,29 +33,64 @@ fn part2(input: &Input) -> u32 {
             (label.to_owned(), Some(value.parse::<u32>().unwrap()))
         };
 
-        let h = hash(&label);
         if let Some(value) = value {
-            if let Some(i) = find(&boxes[h], &label) {
-                boxes[h][i] = (label, value);
-            } else {
-                boxes[h].push((label, value));
-            }
+            hashmap.insert(label, value);
         } else {
-            if let Some(i) = find(&boxes[h], &label) {
-                boxes[h].remove(i);
-            }
+            hashmap.remove(label);
         }
     }
 
-    boxes.into_iter()
+    hashmap.entries.into_iter()
     .enumerate()
     .map(|(i, entries)| {
         (i as u32 + 1) * entries.into_iter().enumerate().map(|(j, (_, val))| (j as u32 + 1) * val).sum::<u32>()
     }).sum()
 }
 
-fn find(values: &[(String, u32)], key: &str) -> Option<usize> {
-    values.iter().position(|(k, _)| *k == key)
+#[derive(Debug, Clone)]
+struct HashMap<T, V> where T: Hash + Eq {
+    entries: Vec<Vec<(T, V)>>,
+}
+
+impl<T, V> HashMap<T, V> where T: Hash + Eq {
+    const BOXES: usize = 256;
+
+    fn new() -> Self {
+        Self {
+            entries: (0..Self::BOXES).map(|_| vec![]).collect(),
+        }
+    }
+
+    fn insert(&mut self, key: T, value: V) {
+        let hash = key.hash() as usize % Self::BOXES;
+        if let Some(i) = self.entries[hash].iter().position(|(k, _)| *k == key) {
+            self.entries[hash][i] = (key, value);
+        } else {
+            self.entries[hash].push((key, value));
+        }
+    }
+
+    fn remove(&mut self, key: T) -> Option<V> {
+        let hash = key.hash() as usize % Self::BOXES;
+        if let Some(i) = self.entries[hash].iter().position(|(k, _)| *k == key) {
+            Some(self.entries[hash].remove(i).1)
+        } else {
+            None
+        }
+    }
+}
+
+trait Hash {
+    fn hash(&self) -> u64;
+}
+
+impl<T> Hash for T where T: Borrow<str> {
+    fn hash(&self) -> u64 {
+        self.borrow()
+        .chars()
+        .map(|c| c as u64)
+        .fold(0, |acc, v| (acc + v) * 17)
+    }
 }
 
 fn hash(s: &str) -> usize {
@@ -65,10 +98,10 @@ fn hash(s: &str) -> usize {
     for c in s.chars() {
         value += c as usize;
         value *= 17;
-        value = value.rem(256);
+        //value = value.rem(256);
     }
 
-    value
+    value % 256
 }
 
 #[derive(Debug, Clone)]
