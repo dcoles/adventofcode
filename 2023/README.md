@@ -26,3 +26,4 @@ cargo run --bin day01
 14. [Parabolic Reflector Dish](day14) 🌟🌟
 15. [Lens Library](day15) 🌟🌟
 16. [The Floor Will Be Lava](day16) 🌟🌟
+17. [Clumsy Crucible](day17) 🌟🌟
