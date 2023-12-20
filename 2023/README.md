@@ -29,3 +29,4 @@ cargo run --bin day01
 17. [Clumsy Crucible](day17) 🌟🌟
 18. [Lavaduct Lagoon](day18) 🌟
 19. [Aplenty](day19) 🌟🌟
+20. [Pulse Propagation](day20) 🌟🌟
