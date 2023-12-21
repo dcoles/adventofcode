@@ -2,12 +2,18 @@
 //! https://adventofcode.com/2023/day/20
 
 use std::collections::{HashMap, VecDeque};
+use std::fmt::{Write, self};
 use std::{fs, io};
 use std::path::Path;
 
+const GRAPHVIZ_FILE: &str = "day20.dot";
+
 fn main() {
     let input = Input::from_file(format!("{}/input.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
-    input.show_graphviz();
+
+    let mut graphviz = String::new();
+    input.write_graphviz(&mut graphviz).unwrap();
+    fs::write(GRAPHVIZ_FILE, graphviz).unwrap();
 
     // Part 1
     println!("Part 1: {}", part1(&input));
@@ -224,27 +230,29 @@ impl Input {
 
     /// Show graphviz representation of input.
     /// Usage: `dot -T png -o day20.png day20.dot`
-    fn show_graphviz(&self) {
-        println!("digraph {{");
+    fn write_graphviz(&self, writer: &mut dyn Write) -> fmt::Result {
+        writeln!(writer, "digraph {{")?;
         for (name, module) in &self.modules {
             match module.module_type {
-                ModuleType::Broadcaster => println!("  {name} [shape=Mdiamond]"),
-                ModuleType::FlipFlop => println!("  {name} [shape=box]"),
+                ModuleType::Broadcaster => writeln!(writer, "  {name} [shape=Mdiamond]"),
+                ModuleType::FlipFlop => writeln!(writer, "  {name} [shape=box]"),
                 ModuleType::Conjunction => {
                     if module.targets.len() == 1 {
                         // Inverter
-                        println!("  {name} [shape=diamond color=red]")
+                        writeln!(writer, "  {name} [shape=circle color=red]")
                     } else {
-                        println!("  {name} [shape=circle color=blue]")
+                        writeln!(writer, "  {name} [shape=circle color=blue]")
                     }
                 },
-            }
+            }?;
 
             for target in &module.targets {
-                println!("  {name} -> {target}")
+                writeln!(writer, "  {name} -> {target}")?;
             }
         }
-        println!("}}");
+        writeln!(writer, "}}")?;
+
+        Ok(())
     }
 }
 
