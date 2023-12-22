@@ -30,3 +30,4 @@ cargo run --bin day01
 18. [Lavaduct Lagoon](day18) 🌟
 19. [Aplenty](day19) 🌟🌟
 20. [Pulse Propagation](day20) 🌟🌟
+21. [Step Counter](day21) 🌟
