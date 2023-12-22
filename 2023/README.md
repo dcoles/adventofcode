@@ -31,3 +31,4 @@ cargo run --bin day01
 19. [Aplenty](day19) 🌟🌟
 20. [Pulse Propagation](day20) 🌟🌟
 21. [Step Counter](day21) 🌟
+22. [Sand Slabs](day22) 🌟🌟
