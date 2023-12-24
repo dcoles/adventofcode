@@ -33,3 +33,4 @@ cargo run --bin day01
 21. [Step Counter](day21) 🌟
 22. [Sand Slabs](day22) 🌟🌟
 23. [A Long Walk](day23) 🌟🌟
+24. [Never Tell Me The Odds](day24) 🌟
