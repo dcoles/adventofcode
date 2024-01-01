@@ -30,7 +30,7 @@ cargo run --bin day01
 18. [Lavaduct Lagoon](day18) 🌟
 19. [Aplenty](day19) 🌟🌟
 20. [Pulse Propagation](day20) 🌟🌟
-21. [Step Counter](day21) 🌟
+21. [Step Counter](day21) 🌟🌟
 22. [Sand Slabs](day22) 🌟🌟
 23. [A Long Walk](day23) 🌟🌟
 24. [Never Tell Me The Odds](day24) 🌟

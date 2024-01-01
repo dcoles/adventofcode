@@ -10,21 +10,42 @@ fn main() {
     //let input = Input::from_file(format!("{}/example1.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
 
     // Part 1
-    println!("Part 1: {}", part1(&input));
+    println!("Part 1: {}", part1(&input, 64));
 
     // Part 2
-    println!("Part 2: {}", part2(&input));
+    println!("Part 2: {}", part2(&input, 26501365));
 }
 
-fn part1(input: &Input) -> usize {
-    reachable_tiles(input, 64)
+fn part1(input: &Input, n_steps: usize) -> usize {
+    reachable_tiles(input, n_steps).len()
 }
 
-fn part2(input: &Input) -> usize {
-    0
+fn part2(input: &Input, n_steps: usize) -> usize {
+    // Make sure we can reach all tile types with an odd number of steps
+    let reachable: HashSet<Pos> = reachable_tiles(input, 2 * 131 + 65).into_iter().filter(|&pos| is_parity(pos, 1)).collect();
+
+    let full_0 = reachable.iter().copied().filter(|&pos| is_field(pos, 0, 0)).count();
+    let full_1 = reachable.iter().copied().filter(|&pos| is_field(pos, 0, 1)).count();
+    let cardinals = reachable.iter().copied().filter(|&pos| is_field(pos, 0, -2) || is_field(pos, 0, 2) || is_field(pos, -2, 0) || is_field(pos, 2, 0)).count();
+    let corners_a = reachable.iter().copied().filter(|&pos| is_field(pos, -1, -2) || is_field(pos, 1, -2) || is_field(pos, -1, 2) || is_field(pos, 1, 2)).count();
+    let corners_b = reachable.iter().copied().filter(|&pos| is_field(pos, -1, -1) || is_field(pos, 1, -1) || is_field(pos, -1, 1) || is_field(pos, 1, 1)).count();
+
+    let n = n_steps / input.width as usize;
+    let a = 4 * ((n + 1) / 2) * ((n - 1) / 2) + 1;
+    let b = 4 * (n / 2) * (n / 2);
+
+    a * full_0 + b * full_1 + cardinals + n * corners_a + (n - 1) * corners_b
 }
 
-fn reachable_tiles(input: &Input, steps: usize) -> usize {
+fn is_field(pos: Pos, x: i64, y: i64) -> bool {
+    pos.0.div_euclid(131) == x && pos.1.div_euclid(131) == y
+}
+
+fn is_parity(pos: Pos, n: usize) -> bool {
+    (pos.0 + pos.1).rem_euclid(2) as usize == n.rem_euclid(2)
+}
+
+fn reachable_tiles(input: &Input, steps: usize) -> HashSet<Pos> {
     let mut edge: VecDeque<_> = [(input.start, 0)].into_iter().collect();
     let mut seen: HashSet<Pos> = [input.start].into_iter().collect();
     while let Some((pos, cur_steps)) = edge.pop_front() {
@@ -47,8 +68,7 @@ fn reachable_tiles(input: &Input, steps: usize) -> usize {
         }
     }
 
-    //seen.values().filter(|&n| n % 2 == 0).count()
-    seen.into_iter().filter(|p| (p.0 + p.1).rem_euclid(2) == 0).count()
+    seen.into_iter().filter(|&pos| is_parity(pos, steps)).collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -99,27 +119,36 @@ mod test {
     fn test_part1() {
         let input = Input::from_file("example1.txt").unwrap();
 
-        assert_eq!(reachable_tiles(&input, 6), 16);
+        assert_eq!(part1(&input, 6), 16);
     }
 
     #[test]
     fn test_part1_solution() {
         let input = Input::from_file("input.txt").unwrap();
 
-        assert_eq!(part1(&input), 3740);
+        assert_eq!(part1(&input, 64), 3740);
     }
 
     #[test]
     fn test_part2() {
         let input = Input::from_file("example1.txt").unwrap();
 
-        assert_eq!(part2(&input), 0);
+        assert_eq!(reachable_tiles(&input, 6).len(), 16);
+        assert_eq!(reachable_tiles(&input, 10).len(), 50);
+        assert_eq!(reachable_tiles(&input, 100).len(), 6536);
+        assert_eq!(reachable_tiles(&input, 500).len(), 167004);
+        assert_eq!(reachable_tiles(&input, 1000).len(), 668697);
     }
 
     #[test]
     fn test_part2_solution() {
         let input = Input::from_file("input.txt").unwrap();
 
-        assert_eq!(part2(&input), 0);
+        // Some sanity checking
+        //assert_eq!(reachable_tiles(&input, 2 * 131 + 65).len(), part2(&input, 2 * 131 + 65));
+        //assert_eq!(reachable_tiles(&input, 4 * 131 + 65).len(), part2(&input, 4 * 131 + 65));
+        //assert_eq!(reachable_tiles(&input, 8 * 131 + 65).len(), part2(&input, 8 * 131 + 65));
+
+        assert_eq!(part2(&input, 26501365), 620962518745459);
     }
 }
