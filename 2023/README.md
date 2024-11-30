@@ -1,4 +1,4 @@
-# Advent of Code 2022 🌟
+# Advent of Code 2023 🌟
 
 My solutions to [Advent of Code 2023](https://adventofcode.com/2023).
 
@@ -34,3 +34,4 @@ cargo run --bin day01
 22. [Sand Slabs](day22) 🌟🌟
 23. [A Long Walk](day23) 🌟🌟
 24. [Never Tell Me The Odds](day24) 🌟
+25. [Snowverload](day25)
