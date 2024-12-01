@@ -10,7 +10,7 @@ cargo run --bin day01
 
 ## Solutions
 
-1. [](day01)
+1. [Historian Hysteria](day01) 🌟🌟
 2. [](day02)
 3. [](day03)
 4. [](day04)
