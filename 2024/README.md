@@ -11,7 +11,7 @@ cargo run --bin day01
 ## Solutions
 
 1. [Historian Hysteria](day01) 🌟🌟
-2. [](day02)
+2. [Red-Nosed Reports](day02) 🌟🌟
 3. [](day03)
 4. [](day04)
 5. [](day05)
