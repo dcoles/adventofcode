@@ -28,28 +28,37 @@ fn part1(input: &Input) -> usize {
         .sum()
 }
 
+#[derive(Copy, Clone, Debug)]
+enum Instruction {
+    Do,
+    Dont,
+    Mul(usize, usize),
+}
+
 fn part2(input: &Input) -> usize {
     let instr_re = Regex::new(r"(?x) (?<instr>mul|do(n't)?) \( (?:(?<a>\d{1,3}) , (?<b>\d{1,3}))? \)").unwrap();
 
-    let mut is_do = true;
     instr_re.captures_iter(&input.input)
-        .filter_map(|m| {
+        .map(|m| {
             match m.name("instr").unwrap().as_str() {
                 "mul" => {
                     let a: usize = m.name("a").and_then(|m| m.as_str().parse().ok()).unwrap();
                     let b: usize = m.name("b").and_then(|m| m.as_str().parse().ok()).unwrap();
 
-                    if is_do {
-                        return Some(a * b)
-                    };
+                    Instruction::Mul(a, b)
                 },
-                "do" => is_do = true,
-                "don't" => is_do = false,
+                "do" => Instruction::Do,
+                "don't" => Instruction::Dont,
                 instr => panic!("unknown instruction {instr:?}"),
             }
-
-            None
-        }).sum()
+        })
+        .fold((true, 0), |(do_it, acc), instr| match instr {
+            Instruction::Do => (true, acc),
+            Instruction::Dont => (false, acc),
+            Instruction::Mul(a, b) if do_it => (true, acc + a * b),
+            _ => (do_it, acc),
+        })
+        .1
 }
 
 #[derive(Debug, Clone)]
