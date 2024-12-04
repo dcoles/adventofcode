@@ -13,7 +13,7 @@ cargo run --bin day01
 1. [Historian Hysteria](day01) 🌟🌟
 2. [Red-Nosed Reports](day02) 🌟🌟
 3. [Mull It Over](day03) 🌟🌟
-4. [](day04)
+4. [Ceres Search](day04) 🌟🌟
 5. [](day05)
 6. [](day06)
 7. [](day07)
