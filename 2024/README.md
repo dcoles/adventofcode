@@ -16,7 +16,7 @@ cargo run --bin day01
 4. [Ceres Search](day04) 🌟🌟
 5. [Print Queue](day05) 🌟🌟
 6. [Guard Gallivant](day06) 🌟🌟
-7. [](day07)
+7. [Bridge Repair](day07) 🌟🌟
 8. [](day08)
 9. [](day09)
 10. [](day10)
