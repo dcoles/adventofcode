@@ -17,7 +17,7 @@ cargo run --bin day01
 5. [Print Queue](day05) 🌟🌟
 6. [Guard Gallivant](day06) 🌟🌟
 7. [Bridge Repair](day07) 🌟🌟
-8. [](day08)
+8. [Resonant Collinearity](day08) 🌟🌟
 9. [](day09)
 10. [](day10)
 11. [](day11)

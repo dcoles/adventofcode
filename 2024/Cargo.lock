@@ -45,6 +45,9 @@ version = "0.1.0"
 [[package]]
 name = "day08"
 version = "0.1.0"
+dependencies = [
+ "lib",
+]
 
 [[package]]
 name = "day09"
@@ -112,6 +115,10 @@ version = "0.1.0"
 
 [[package]]
 name = "day25"
+version = "0.1.0"
+
+[[package]]
+name = "lib"
 version = "0.1.0"
 
 [[package]]

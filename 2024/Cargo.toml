@@ -25,6 +25,7 @@ members = [
     "day23",
     "day24",
     "day25",
+    "lib",
 ]
 exclude = []
 resolver = "2"
