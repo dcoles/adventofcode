@@ -18,7 +18,7 @@ cargo run --bin day01
 6. [Guard Gallivant](day06) 🌟🌟
 7. [Bridge Repair](day07) 🌟🌟
 8. [Resonant Collinearity](day08) 🌟🌟
-9. [](day09)
+9. [Disk Fragmenter](day09) 🌟🌟
 10. [](day10)
 11. [](day11)
 12. [](day12)
