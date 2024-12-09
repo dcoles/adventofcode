@@ -23,137 +23,105 @@ struct Extent {
     length: usize,
 }
 
-fn part1(input: &Input) -> usize {
-    let mut free = BTreeMap::default();
-    let mut files = BTreeMap::default();
+fn extents_map(extents: &[Extent]) -> BTreeMap<usize, Extent> {
+    let mut map = BTreeMap::new();
+
     let mut offset = 0;
 
-    for (n, len) in input.values.iter().copied().enumerate() {
-        if len == 0 {
+    for extent in extents {
+        if extent.length == 0 {
             continue;
         }
 
-        if n % 2 == 0 {
-            files.insert(offset, Extent {
-                id: Some(n / 2),
-                length: len,
-            });
-        } else {
-            free.insert(offset, Extent {
-                id: None,
-                length: len,
-            });
-        }
-        offset += len;
+        map.insert(offset, *extent);
+
+        offset += extent.length;
     }
 
-    while let Some((offset, mut hole)) = free.pop_first() {
-        let extent = if let Some(mut entry) = files.last_entry() {
-            if *entry.key() < offset {
-                break;
-            }
+    map
+}
 
-            let file = entry.get_mut();
-            let id = file.id;
-            let length = usize::min(hole.length, file.length);
-
-            hole.length -= length;
-            file.length -= length;
-
-            if file.length == 0 {
-                entry.remove();
-            }
-
-            Extent { id, length }
-        } else {
-            panic!();
-        };
-
-        files.insert(offset, extent);
-
-        if hole.length > 0 {
-            free.insert(offset + extent.length, hole);
-        }
-    }
-
-
+fn checksum(extents_map: &BTreeMap<usize, Extent>) -> usize {
     let mut checksum = 0;
-    for (offset, extent) in files {
-        for n in offset..(offset + extent.length) {
-            checksum += n * extent.id.unwrap();
+
+    for (&offset, extent) in extents_map {
+        if let Some(id) = extent.id {
+            for n in offset..(offset + extent.length) {
+                checksum += n * id;
+            }
         }
     }
 
     checksum
 }
 
-fn part2(input: &Input) -> usize {
-    let mut free = BTreeMap::default();
-    let mut files = BTreeMap::default();
-    let mut offset = 0;
+fn part1(input: &Input) -> usize {
+    let mut extents_map = extents_map(&input.values);
 
-    for (n, len) in input.values.iter().copied().enumerate() {
-        if len == 0 {
-            continue;
+    loop {
+        let (&hole_pos, _) = extents_map.iter().find(|(_, e)| e.id.is_none()).unwrap();
+        let (&file_pos, _) = extents_map.iter().rfind(|(_, e)| e.id.is_some()).unwrap();
+
+        if file_pos <= hole_pos {
+            // No more suitable holes left
+            break;
         }
 
-        if n % 2 == 0 {
-            files.insert(offset, Extent {
-                id: Some(n / 2),
-                length: len,
-            });
-        } else {
-            free.insert(offset, Extent {
-                id: None,
-                length: len,
-            });
+        let mut hole = extents_map.remove(&hole_pos).unwrap();
+        let mut file = extents_map.remove(&file_pos).unwrap();
+
+        let size = usize::min(hole.length, file.length);
+        hole.length -= size;
+        file.length -= size;
+
+        extents_map.insert(hole_pos, Extent { id: file.id, length: size });
+
+        if hole.length > 0 {
+            extents_map.insert(hole_pos + size, hole);
         }
-        offset += len;
+
+        if file.length > 0 {
+            extents_map.insert(file_pos, file);
+        }
     }
 
-    let mut defragmented = BTreeMap::new();
-    while let Some((cur_pos, file)) = files.pop_last() {
-        let mut selected_hole = None;
-        for (&hole_pos, hole) in free.iter() {
-            if hole_pos >= cur_pos {
-                break;
+    checksum(&extents_map)
+}
+
+fn part2(input: &Input) -> usize {
+    let mut extents_map = extents_map(&input.values);
+    let file_positions: Vec<_> = extents_map.iter().filter_map(|(&offset, extent)| {
+        extent.id.is_some().then_some(offset)
+    }).collect();
+
+    for &file_pos in file_positions.iter().rev() {
+        let len = extents_map[&file_pos].length;
+
+        if let Some((&hole_pos, _)) = extents_map.iter().find(|(_, e)| e.id.is_none() && e.length >= len) {
+            if hole_pos >= file_pos {
+                // No better position found
+                continue;
             }
 
-            if file.length <= hole.length {
-                selected_hole = Some(hole_pos);
-                break;
-            }
-        }
+            let file = extents_map.remove(&file_pos).unwrap();
+            let mut hole = extents_map.remove(&hole_pos).unwrap();
 
-        if let Some(hole_pos) = selected_hole {
-            let len = file.length;
-            let mut hole = free.remove(&hole_pos).unwrap();
-
-            defragmented.insert(hole_pos, file);
-            hole.length -= len;
+            hole.length -= file.length;
 
             if hole.length > 0 {
-                free.insert(hole_pos + len, hole);
+                extents_map.insert(hole_pos + file.length, hole);
             }
 
-        } else {
-            defragmented.insert(cur_pos, file);
+            extents_map.insert(hole_pos, file);
         }
     }
 
-    let mut checksum = 0;
-    for (offset, extent) in defragmented {
-        for n in offset..(offset + extent.length) {
-            checksum += n * extent.id.unwrap();
-        }
-    }
-
-    checksum
+    checksum(&extents_map)
 }
 
 #[derive(Debug, Clone)]
 struct Input {
-    values: Vec<usize>,
+    values: Vec<Extent>,
 }
 
 impl Input {
@@ -162,7 +130,16 @@ impl Input {
         let values = input
             .trim()
             .chars()
-            .map(|c| c.to_digit(10).unwrap() as usize)
+            .enumerate()
+            .map(|(n, c)| {
+                let is_file = n % 2 == 0;
+                let length = c.to_digit(10).unwrap() as usize;
+
+                Extent {
+                    id: is_file.then_some(n / 2),
+                    length,
+                }
+            })
             .collect();
 
         Ok(Self { values })
