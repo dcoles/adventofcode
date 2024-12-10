@@ -19,7 +19,7 @@ cargo run --bin day01
 7. [Bridge Repair](day07) 🌟🌟
 8. [Resonant Collinearity](day08) 🌟🌟
 9. [Disk Fragmenter](day09) 🌟🌟
-10. [](day10)
+10. [Hoof It](day10) 🌟🌟
 11. [](day11)
 12. [](day12)
 13. [](day13)

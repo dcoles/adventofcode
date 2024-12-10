@@ -6,11 +6,11 @@ use std::ops::{Add, AddAssign, Index, Neg, Sub, SubAssign};
 pub struct Vector<T: Copy + Default, const N: usize>([T; N]);
 
 impl<T: Copy + Default, const N: usize> Vector<T, N> {
-    pub fn new(vec: [T; N]) -> Self {
+    pub const fn new(vec: [T; N]) -> Self {
         Vector(vec)
     }
 
-    pub fn dimensions(self) -> usize {
+    pub const fn dimensions(self) -> usize {
         N
     }
 }
