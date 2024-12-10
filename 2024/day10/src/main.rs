@@ -3,6 +3,7 @@
 
 use std::{fs, io};
 use std::collections::{BTreeMap, BTreeSet};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
 use lib::vector::Vector;
 
@@ -73,12 +74,16 @@ fn part2(input: &Input) -> usize {
 fn rating(trailhead: Vec2, heights: &BTreeMap<Vec2, u8>) -> usize {
     let mut rating = 0;
 
-    let mut visited: BTreeSet<Vec<Vec2>> = [vec![trailhead]].into_iter().collect();
-    let mut edge = vec![vec![trailhead]];
+    let mut hasher = DefaultHasher::new();
+    trailhead.hash(&mut hasher);
+    let hash = hasher.finish();
 
-    while let Some(trail) = edge.pop() {
-        let pos = *trail.last().unwrap();
+    let mut visited: BTreeSet<u64> = [hash].into_iter().collect();
+    let mut edge = vec![(trailhead, hasher)];
+
+    while let Some((pos, hasher)) = edge.pop() {
         let height = heights[&pos];
+
         if height == 9 {
             rating += 1;
             continue;
@@ -86,15 +91,19 @@ fn rating(trailhead: Vec2, heights: &BTreeMap<Vec2, u8>) -> usize {
 
         for dir in [UP, DOWN, LEFT, RIGHT] {
             let next_pos = pos + dir;
-            let new_trail: Vec<_> = trail.iter().copied().chain([next_pos]).collect();
 
-            if visited.contains(&new_trail) {
+            let mut hasher = hasher.clone();
+            next_pos.hash(&mut hasher);
+            let hash = hasher.finish();
+
+            if visited.contains(&hash) {
                 continue;
             }
 
+            visited.insert(hash);
+
             if heights.get(&next_pos).copied() == Some(height + 1) {
-                visited.insert(new_trail.clone());
-                edge.push(new_trail);
+                edge.push((next_pos, hasher));
             }
         }
     }
