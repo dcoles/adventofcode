@@ -20,7 +20,7 @@ cargo run --bin day01
 8. [Resonant Collinearity](day08) 🌟🌟
 9. [Disk Fragmenter](day09) 🌟🌟
 10. [Hoof It](day10) 🌟🌟
-11. [](day11)
+11. [Plutonian Pebbles](day11) 🌟🌟
 12. [](day12)
 13. [](day13)
 14. [](day14)
