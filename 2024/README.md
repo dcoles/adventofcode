@@ -21,7 +21,7 @@ cargo run --bin day01
 9. [Disk Fragmenter](day09) 🌟🌟
 10. [Hoof It](day10) 🌟🌟
 11. [Plutonian Pebbles](day11) 🌟🌟
-12. [](day12)
+12. [Garden Groups](day12) 🌟🌟
 13. [](day13)
 14. [](day14)
 15. [](day15)

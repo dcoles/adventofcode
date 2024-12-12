@@ -32,20 +32,19 @@ impl<T: Copy + Default, const N: usize> Index<usize> for Vector<T, N> {
 impl<T: Add<Output=T> + Copy + Default, const N: usize> Add for Vector<T, N> {
     type Output = Vector<T, N>;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        let mut vec = [T::default(); N];
-        for n in 0..N {
-            vec[n] = self.0[n] + rhs.0[n];
+    fn add(mut self, rhs: Self) -> Self::Output {
+        for (v, v_rhs) in self.0.iter_mut().zip(&rhs.0) {
+            *v = *v + *v_rhs;
         }
 
-        Vector(vec)
+        self
     }
 }
 
 impl<T: Add<Output=T> + Copy + Default, const N: usize> AddAssign for Vector<T, N> {
     fn add_assign(&mut self, rhs: Self) {
-        for n in 0..N {
-            self.0[n] = self.0[n] + rhs.0[n];
+        for (v, v_rhs) in self.0.iter_mut().zip(&rhs.0) {
+            *v = *v + *v_rhs;
         }
     }
 }
@@ -53,20 +52,19 @@ impl<T: Add<Output=T> + Copy + Default, const N: usize> AddAssign for Vector<T, 
 impl<T: Sub<Output=T> + Copy + Default, const N: usize> Sub for Vector<T, N> {
     type Output = Vector<T, N>;
 
-    fn sub(self, rhs: Self) -> Self::Output {
-        let mut vec = [T::default(); N];
-        for n in 0..N {
-            vec[n] = self.0[n] - rhs.0[n];
+    fn sub(mut self, rhs: Self) -> Self::Output {
+        for (v, v_rhs) in self.0.iter_mut().zip(&rhs.0) {
+            *v = *v - *v_rhs;
         }
 
-        Vector(vec)
+        self
     }
 }
 
 impl<T: Sub<Output=T> + Copy + Default, const N: usize> SubAssign for Vector<T, N> {
     fn sub_assign(&mut self, rhs: Self) {
-        for n in 0..N {
-            self.0[n] = self.0[n] - rhs.0[n];
+        for (v, v_rhs) in self.0.iter_mut().zip(&rhs.0) {
+            *v = *v - *v_rhs;
         }
     }
 }
@@ -74,12 +72,11 @@ impl<T: Sub<Output=T> + Copy + Default, const N: usize> SubAssign for Vector<T, 
 impl<T: Neg<Output=T> + Copy + Default, const N: usize> Neg for Vector<T, N> {
     type Output = Vector<T, N>;
 
-    fn neg(self) -> Self::Output {
-        let mut vec = [T::default(); N];
-        for n in 0..N {
-            vec[n] = -self.0[n];
+    fn neg(mut self) -> Self::Output {
+        for v in self.0.iter_mut() {
+            *v = -*v;
         }
 
-        Vector(vec)
+        self
     }
 }
