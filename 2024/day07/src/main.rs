@@ -16,43 +16,26 @@ fn main() {
     println!("Part 2: {}", part2(&input));
 }
 
-#[derive(Debug, Copy, Clone)]
-enum Op {
-    Add,
-    Mul,
-    Concat,
-}
-
-impl Op {
-    fn apply(&self, left: u64, right: u64) -> u64 {
-        match self {
-            Op::Add => left + right,
-            Op::Mul => left * right,
-            Op::Concat => left * right.next_multiple_of(10) + right,
-        }
-    }
-}
-
 fn part1(input: &Input) -> u64 {
     let mut sum = 0;
 
     for (result, values) in input.values.iter() {
-        let result = *result;
-
         let mut edge = vec![(1, values[0])];
         while let Some((n, x)) = edge.pop() {
             if n == values.len() {
-                if x == result {
-                    // solved!
-                    sum += result;
+                if x == *result {
+                    sum += *result;
                     break;
                 }
             } else {
-                for op in [Op::Add, Op::Mul] {
-                    let val = op.apply(x, values[n]);
-                    if val <= result {
-                        edge.push((n + 1, val));
-                    }
+                let add = x + values[n];
+                if add <= *result {
+                    edge.push((n + 1, add));
+                }
+
+                let mul = x * values[n];
+                if mul <= *result {
+                    edge.push((n + 1, mul));
                 }
             }
         }
@@ -65,22 +48,27 @@ fn part2(input: &Input) -> u64 {
     let mut sum = 0;
 
     for (result, values) in input.values.iter() {
-        let result = *result;
-
         let mut edge = vec![(1, values[0])];
         while let Some((n, x)) = edge.pop() {
             if n == values.len() {
-                // solved!
-                if x == result {
-                    sum += result;
+                if x == *result {
+                    sum += *result;
                     break;
                 }
             } else {
-                for op in [Op::Add, Op::Mul, Op::Concat] {
-                    let val = op.apply(x, values[n]);
-                    if val <= result {
-                        edge.push((n + 1, val));
-                    }
+                let add = x + values[n];
+                if add <= *result {
+                    edge.push((n + 1, add));
+                }
+
+                let mul = x * values[n];
+                if mul <= *result {
+                    edge.push((n + 1, mul));
+                }
+
+                let concat = format!("{}{}", x, values[n]).parse().unwrap();
+                if concat <= *result {
+                    edge.push((n + 1, concat));
                 }
             }
         }
