@@ -29,3 +29,6 @@ members = [
 ]
 exclude = []
 resolver = "2"
+
+[workspace.dependencies]
+lib = { path = "lib" }

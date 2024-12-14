@@ -1,6 +1,6 @@
 //! Vector type.
 
-use std::ops::{Add, AddAssign, Index, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Index, IndexMut, Neg, Sub, SubAssign};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Vector<T: Copy + Default, const N: usize>([T; N]);
@@ -26,6 +26,12 @@ impl<T: Copy + Default, const N: usize> Index<usize> for Vector<T, N> {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
+    }
+}
+
+impl<T: Copy + Default, const N: usize> IndexMut<usize> for Vector<T, N> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
     }
 }
 

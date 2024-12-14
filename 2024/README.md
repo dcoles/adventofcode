@@ -23,7 +23,7 @@ cargo run --bin day01
 11. [Plutonian Pebbles](day11) 🌟🌟
 12. [Garden Groups](day12) 🌟🌟
 13. [Claw Contraption](day13) 🌟🌟
-14. [](day14)
+14. [Restroom Redoubt](day14) 🌟🌟
 15. [](day15)
 16. [](day16)
 17. [](day17)
