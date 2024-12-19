@@ -25,7 +25,7 @@ cargo run --bin day01
 13. [Claw Contraption](day13) 🌟🌟
 14. [Restroom Redoubt](day14) 🌟🌟
 15. [](day15)
-16. [](day16)
+16. [Reindeer Maze](day16) 🌟🌟
 17. [](day17)
 18. [](day18)
 19. [](day19)
