@@ -27,7 +27,7 @@ cargo run --bin day01
 15. [](day15)
 16. [Reindeer Maze](day16) 🌟🌟
 17. [](day17)
-18. [](day18)
+18. [RAM Run](day18) 🌟🌟
 19. [](day19)
 20. [](day20)
 21. [](day21)
