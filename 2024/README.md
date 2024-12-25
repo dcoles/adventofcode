@@ -29,7 +29,7 @@ cargo run --bin day01
 17. [](day17)
 18. [RAM Run](day18) 🌟🌟
 19. [Linen Layout](day19) 🌟🌟
-20. [](day20)
+20. [Race Condition](day20) 🌟🌟
 21. [](day21)
 22. [](day22)
 23. [](day23)
