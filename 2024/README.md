@@ -32,6 +32,6 @@ cargo run --bin day01
 20. [Race Condition](day20) 🌟🌟
 21. [](day21)
 22. [Monkey Market](day22) 🌟🌟
-23. [](day23)
+23. [LAN Party](day23) 🌟🌟
 24. [](day24)
 25. [](day25)
