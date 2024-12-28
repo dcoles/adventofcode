@@ -92,6 +92,9 @@ version = "0.1.0"
 [[package]]
 name = "day16"
 version = "0.1.0"
+dependencies = [
+ "lib",
+]
 
 [[package]]
 name = "day17"
@@ -100,6 +103,9 @@ version = "0.1.0"
 [[package]]
 name = "day18"
 version = "0.1.0"
+dependencies = [
+ "lib",
+]
 
 [[package]]
 name = "day19"
@@ -108,10 +114,17 @@ version = "0.1.0"
 [[package]]
 name = "day20"
 version = "0.1.0"
+dependencies = [
+ "lib",
+]
 
 [[package]]
 name = "day21"
 version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "lib",
+]
 
 [[package]]
 name = "day22"
@@ -128,6 +141,12 @@ version = "0.1.0"
 [[package]]
 name = "day25"
 version = "0.1.0"
+
+[[package]]
+name = "lazy_static"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lib"

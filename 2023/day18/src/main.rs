@@ -52,8 +52,95 @@ fn part1(input: &Input) -> usize {
 }
 
 fn part2(input: &Input) -> usize {
+    let mut x = 0;
+    let mut y = 0;
+    let mut coords = vec![(x, y)];
+
+
+    /*
+    for (_, _, color) in &input.values {
+        let distance = i64::from_str_radix(&color[1..6], 16).unwrap();
+        match &color[6..7] {
+            "0" => x += distance, // Right,
+            "1" => y += distance, // Down
+            "2" => x -= distance, // Left
+            "3" => y -= distance, // Up
+            s => panic!("unknown directional ordinal: {s:?}"),
+        }
+
+        coords.push((x, y));
+    }
+    */
+    for (direction, distance, _) in &input.values {
+        match direction {
+            Direction::Up => y -= distance,
+            Direction::Down => y += distance,
+            Direction::Left => x -= distance,
+            Direction::Right => x += distance,
+        }
+
+        coords.push((x, y));
+    }
+
+    assert_eq!(coords.first().unwrap(), coords.last().unwrap());
+
+    let forward: Vec<(i64, i64)> = coords.iter().copied().collect();
+    let backwards: Vec<(i64, i64)> = coords.iter().rev().copied().collect();
+
+    let mut i = 0;
+    let mut j = 0;
+
+    let mut begin: Pos = (0, 0);
+    let mut a: Pos = (0, 0);
+    let mut b: Pos = (0, 0);
+    let mut total_area = 0;
+
+
+    loop {
+        while a.0 - begin.0 == 0 || a.1 - begin.1 == 0 {
+            i += 1;
+            a = forward[i];
+        }
+
+        while b.0 - begin.0 == 0 || b.1 - begin.1 == 0 {
+            j += 1;
+            b = backwards[j];
+        }
+
+        let dx_a = a.0 - begin.0;
+        let dx_b = b.0 - begin.0;
+        let dy_a = a.1 - begin.1;
+        let dy_b = b.1 - begin.1;
+
+        let dx = dx_a;
+        let dy = if dy_a.abs() < dy_b.abs() { dy_a } else { dy_b };
+
+        println!("dx {dx}, dy {dy}");
+
+        total_area += (dx.abs() + 1) * (dy.abs() + 1);
+
+        begin = (begin.0 + dx_b + dx_b.signum(), begin.1 + dy + dy.signum());
+
+        println!("{}", total_area);
+
+        if total_area > 10 {
+            break;
+        }
+    }
+
     0
 }
+
+type Pos = (i64, i64);
+
+fn delta(x1: (i64, i64), x0: (i64, i64)) -> (i64, i64) {
+    (x1.0 - x0.0, x1.1 - x0.1)
+}
+
+fn area(x0: Pos, x1: Pos) -> i64 {
+    (x1.0 - x0.0).abs() * (x1.1 - x0.1).abs()
+}
+
 
 #[derive(Debug, Clone)]
 struct Input {

@@ -6,6 +6,7 @@ use std::fs;
 use std::fs::File;
 use std::io;
 use std::io::Write;
+use std::ops::{Add, Sub};
 use std::path::Path;
 
 fn main() {
@@ -22,6 +23,7 @@ fn main() {
 }
 
 fn part1(input: &Input) -> usize {
+    let mut prev: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
     let mut best: HashMap<(usize, usize), usize> = [(input.start, 0)].into_iter().collect();
     let mut edge = vec![input.start];
 
@@ -34,6 +36,7 @@ fn part1(input: &Input) -> usize {
         for neighbour in input.neighbour(pos) {
             let steps = best[&pos] + 1;
             if best.get(&neighbour).map(|best| steps < *best).unwrap_or(true) {
+                prev.insert(neighbour, pos);
                 best.insert(neighbour, steps);
                 edge.push(neighbour);
             }
@@ -41,6 +44,16 @@ fn part1(input: &Input) -> usize {
 
         edge.sort_by(|a, b| best[b].cmp(&best[a]));
     }
+
+    // Walk path
+    let mut pos = input.end;
+    println!("[");
+    println!("  ({}, {}, {}),", pos.0, pos.1, input.map[&pos]);
+    while let Some(&p) = prev.get(&pos) {
+        println!("  ({}, {}, {}),", p.0, p.1, input.map[&p]);
+        pos = p;
+    }
+    println!("]");
 
     // What is the fewest steps required to move from your current position
     // to the location that should get the best signal?

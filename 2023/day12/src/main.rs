@@ -6,7 +6,7 @@ use std::path::Path;
 
 fn main() {
     let input = Input::from_file(format!("{}/input.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
-    //let input = Input::from_file(format!("{}/example1.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
+    let input = Input::from_file(format!("{}/example1.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
 
     // Part 1
     println!("Part 1: {}", part1(&input));
@@ -36,7 +36,7 @@ fn part1(input: &Input) -> usize {
         combinations.push(count);
     }
 
-    println!("{:?}", combinations);
+    //println!("{:?}", combinations);
     combinations.into_iter().sum()
 }
 
@@ -69,6 +69,105 @@ fn is_match(state: &[State], groups: &[usize]) -> bool {
 }
 
 fn part2(input: &Input) -> usize {
+    for (records, groups) in &input.values {
+        let mut records = records.clone();
+        println!("{records:?} {groups:?}");
+
+        let total = records.len();
+        let n_damaged: usize = groups.iter().sum();
+        let n_ok = total - n_damaged;
+
+        println!("total: {total}, damaged: {n_damaged}, ok: {n_ok}");
+
+        // We can split these up into groups of ok/broken/ok/.../broken/ok
+        // N0 + A + (1 + N1) + B + (1 + N2) + ... + Z + Nn = total
+        // We know that N0 .. Nn must be in the range 0..a
+        let mut a = n_ok - (groups.len() - 1);
+        println!("a: {a}");
+
+        // There's always at least one OK spring between broken sets
+        let mut ns = vec![[0, a]; groups.len() + 1];
+        for n in 1..groups.len() {
+            ns[n][0] += 1;
+            ns[n][1] += 1;
+        }
+
+        let mut ok_known = records.iter().filter(|r| matches!(r, State::Operational)).count();
+        let mut damaged_known = records.iter().filter(|r| matches!(r, State::Damaged)).count();
+        let mut unknown = records.iter().filter(|r| matches!(r, State::Unknown)).count();
+        assert_eq!(ok_known + damaged_known + unknown, records.len());
+
+        let mut n = 0;
+        let mut ok_seen = 0;
+        let mut damaged_seen = 0;
+        let mut unknown_seen = 0;
+        for i in 0..records.len() {
+            println!("{i:02}: OK={ok_seen:2}, NG={damaged_seen:2}, UNK={unknown_seen:2} {ns:?}");
+            match records[i] {
+                State::Damaged => {
+                    damaged_seen += 1;
+
+                    ns[n][1] = ns[n][1].min(i); // This can probably be more agressive
+
+                    if damaged_seen == groups[0] {
+                        if (i + 1) > groups[n] {
+                            // This set must be preceeded by an undamaged mirror
+                            assert!(!matches!(records[i - groups[n]], State::Damaged));
+
+                            if matches!(records[i - groups[n]], State::Unknown) {
+                                records[i - groups[n]] = State::Operational;
+                                ok_known += 1;
+                                unknown -= 1;
+                            }
+
+                            ns[n][0] += 1;
+                            a = a.saturating_sub(1);
+                            for m in (0..ns.len()).filter(|&m| m != n) {
+                                ns[m][1] = ns[m][1].min(a);
+                            }
+                        }
+
+                        if (i + 1) < records.len() {
+                            // This set must be followed by an undamaged mirror
+                            assert!(!matches!(records[i + 1], State::Damaged));
+
+                            if matches!(records[i + 1], State::Unknown) {
+                                records[i + 1] = State::Operational;
+                                ok_known += 1;
+                                unknown -= 1;
+                            }
+
+                            assert_eq!(ns[n + 1][0], 1);  // already accounted for there being at least 1
+                        }
+
+                        ok_seen = 0;
+                        damaged_seen = 0;
+                        unknown_seen = 0;
+
+                        n += 1;
+                    }
+                },
+                State::Operational => {
+                    ok_seen += 1;
+                },
+                State::Unknown => {
+                    unknown_seen += 1;
+                },
+            }
+
+            // We have to always maintain these invariants
+            assert!(ok_seen <= n_ok);
+            assert!(damaged_seen <= n_damaged);
+            assert_eq!(ok_known + damaged_known + unknown, records.len());
+            assert!(ns.iter().map(|[lower, _]| lower).sum::<usize>() <= n_ok, "violated lower-bounds: {ns:?}");
+            assert!(ns.iter().map(|[_, upper]| upper).sum::<usize>() >= n_ok, "violated upper-bounds: {ns:?}");
+            assert!(ns.iter().all(|[lower, upper]| lower <= upper));
+        }
+
+        // We've done all we can
+        println!();
+    }
+
     0
 }
 

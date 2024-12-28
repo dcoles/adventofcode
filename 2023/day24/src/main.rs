@@ -9,8 +9,8 @@ const T_MIN: f64 = 0.0;
 const RANGE: RangeInclusive<f64> = 200000000000000.0..=400000000000000.0;
 
 fn main() {
-    let input = Input::from_file(format!("{}/input.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
-    //let input = Input::from_file(format!("{}/example1.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
+    //let input = Input::from_file(format!("{}/input.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
+    let input = Input::from_file(format!("{}/example1.txt", env!("CARGO_MANIFEST_DIR"))).expect("failed to read input");
     //println!("{input:?}");
 
     // Part 1
@@ -37,7 +37,7 @@ fn intersections_within_area(input: &Input, range: RangeInclusive<f64>) -> usize
             let b = input.values[j];
             let (intersect, (t_a, t_b)) = solve_xy_intersection(a, b);
 
-            //println!("{a:?} {b:?}: {intersect:?} @ {t_a}/{t_b} ns");
+            println!("{a:?} {b:?}: {intersect:?} @ {t_a}/{t_b} ns");
             if range.contains(&intersect.x) && range.contains(&intersect.y) && t_a > T_MIN && t_b > T_MIN {
                 n += 1;
             }
