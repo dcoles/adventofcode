@@ -31,7 +31,7 @@ cargo run --bin day01
 19. [Linen Layout](day19) 🌟🌟
 20. [Race Condition](day20) 🌟🌟
 21. [](day21)
-22. [](day22)
+22. [Monkey Market](day22) 🌟🌟
 23. [](day23)
 24. [](day24)
 25. [](day25)
