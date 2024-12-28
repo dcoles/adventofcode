@@ -7,6 +7,11 @@ use crate::vector::Vector;
 
 pub type Pos = Vector<i64, 2>;
 
+const UP: Vector<i64, 2> = Vector::new([0, -1]);
+const DOWN: Vector<i64, 2> = Vector::new([0, 1]);
+const LEFT: Vector<i64, 2> = Vector::new([-1, 0]);
+const RIGHT: Vector<i64, 2> = Vector::new([1, 0]);
+
 #[derive(Debug, Clone)]
 pub struct Grid {
     data: BTreeMap<Pos, char>,
@@ -26,6 +31,19 @@ impl Grid {
             cur: Pos::new([0, 0]),
             end: self.end,
         }
+    }
+
+    pub fn adjacent(&self, pos: Pos) -> Vec<Pos> {
+        [UP, DOWN, LEFT, RIGHT].into_iter()
+            .map(|d| pos + d)
+            .filter(|&p| self.valid(p))
+            .collect()
+    }
+
+    pub fn valid(&self, pos: Pos) -> bool {
+        let (x_range, y_range) = self.range();
+
+        x_range.contains(&pos[0]) && y_range.contains(&pos[1])
     }
 }
 
