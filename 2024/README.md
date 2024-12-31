@@ -34,4 +34,4 @@ cargo run --bin day01
 22. [Monkey Market](day22) 🌟🌟
 23. [LAN Party](day23) 🌟🌟
 24. [](day24)
-25. [](day25)
+25. [Code Chronicle](day25) 🌟
