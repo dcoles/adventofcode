@@ -11,3 +11,4 @@ cargo run --bin day01
 ## Solutions
 
 1. [Secret Entrance](day01) 🌟🌟
+2. [Gift Shop](day02) 🌟🌟
