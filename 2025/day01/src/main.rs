@@ -23,10 +23,10 @@ fn part1(input: &Input) -> usize {
     let mut count = 0;
 
     let mut position = START;
-    for rotation in &input.values {
+    for rotation in input.values.iter().copied() {
         position = match rotation {
-            &Rotation::L(n) => (position - n).rem_euclid(N_POSITIONS),
-            &Rotation::R(n) => (position + n).rem_euclid(N_POSITIONS),
+            Rotation::L(n) => (position - n).rem_euclid(N_POSITIONS),
+            Rotation::R(n) => (position + n).rem_euclid(N_POSITIONS),
         };
 
         // Count the number of times we stop on zero
@@ -42,18 +42,18 @@ fn part2(input: &Input) -> i32 {
     let mut count = 0;
 
     let mut position = START;
-    for rotation in &input.values {
+    for rotation in input.values.iter().copied() {
         match rotation {
-            &Rotation::L(n) => {
+            Rotation::L(n) => {
                 // Rust division rounds towards zero, so we need to normalize first
                 count += ((N_POSITIONS - position) % N_POSITIONS + n) / N_POSITIONS;
                 position = (position - n).rem_euclid(N_POSITIONS);
             },
-            &Rotation::R(n) => {
+            Rotation::R(n) => {
                 count += (position + n) / N_POSITIONS;
                 position = (position + n).rem_euclid(N_POSITIONS);
             },
-        };
+        }
     }
 
     count
