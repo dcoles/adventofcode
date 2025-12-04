@@ -19,11 +19,16 @@ pub struct Grid {
 }
 
 impl Grid {
-    pub fn range(&self) -> (Range<i64>, Range<i64>) {
+    pub fn x_range(&self) -> Range<i64> {
         let width = self.end[0] + 1;
+
+        0..width
+    }
+
+    pub fn y_range(&self) -> Range<i64> {
         let height = self.end[1] + 1;
 
-        (0..width, 0..height)
+        0..height
     }
 
     pub fn positions(&self) -> Positions {
@@ -33,17 +38,22 @@ impl Grid {
         }
     }
 
-    pub fn adjacent(&self, pos: Pos) -> Vec<Pos> {
+    pub fn adjacent4(&self, pos: Pos) -> Vec<Pos> {
         [UP, DOWN, LEFT, RIGHT].into_iter()
             .map(|d| pos + d)
             .filter(|&p| self.valid(p))
             .collect()
     }
 
-    pub fn valid(&self, pos: Pos) -> bool {
-        let (x_range, y_range) = self.range();
+    pub fn adjacent8(&self, pos: Pos) -> Vec<Pos> {
+        [UP, DOWN, LEFT, RIGHT, UP + LEFT, UP + RIGHT, DOWN + LEFT, DOWN + RIGHT].into_iter()
+            .map(|d| pos + d)
+            .filter(|&p| self.valid(p))
+            .collect()
+    }
 
-        x_range.contains(&pos[0]) && y_range.contains(&pos[1])
+    pub fn valid(&self, pos: Pos) -> bool {
+        self.x_range().contains(&pos[0]) && self.y_range().contains(&pos[1])
     }
 }
 
