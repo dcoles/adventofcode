@@ -16,41 +16,31 @@ fn main() {
     println!("Part 2: {}", part2(&input));
 }
 
-const MAX_WIDTH: usize = 9999;
+fn sum(it: impl Iterator<Item=i64>) -> i64 {
+    it.sum()
+}
+
+fn product(it: impl Iterator<Item=i64>) -> i64 {
+    it.product()
+}
 
 fn part1(input: &Input) -> i64 {
-    let operations_line = input.values.last().unwrap();
-    let mut operations = vec![];
-    let mut columns = vec![];
-    for (i, c) in operations_line.chars().enumerate().filter(|(_, c)| *c != ' ') {
-        operations.push(c);
-        columns.push(i);
-    }
-    columns.push(MAX_WIDTH);
-
-    let columns: Vec<_> = columns.windows(2).map(|window| window[0]..window[1]).collect();
-
-    let mut column_values: Vec<Vec<i64>> = vec![vec![]; operations.len()];
-    for line in &input.values[0..(input.values.len() - 1)] {
-        for (i, column) in columns.iter().enumerate() {
-            let slice = column.start..column.end.min(line.len());
-            let value: i64 = line[slice].trim().parse().expect("value should be i32");
-            column_values[i].push(value);
-        }
-    }
-
     let mut total = 0;
-    for i in 0..operations.len() {
-        let op = operations[i];
-        let values = &column_values[i];
 
-        let subtotal = match op {
-            '+' => values.iter().copied().sum::<i64>(),
-            '*' => values.iter().copied().product::<i64>(),
-            _ => panic!("unknown op {op}"),
-        };
+    let mut rows: Vec<_> = input.values.iter().map(|s| s.split_whitespace()).collect();
 
-        total += subtotal;
+    let operations: Vec<_> = rows.pop().unwrap()
+        .map(|s| match s {
+            "+" => sum,
+            "*" => product,
+            _ => panic!(),
+        })
+        .collect();
+
+    let values: Vec<Vec<_>> = rows.into_iter().map(|split| split.map(|s| s.parse::<i64>().unwrap()).collect()).collect();
+
+    for (i, op) in operations.into_iter().enumerate() {
+        total += op(values.iter().map(move |v| v[i]));
     }
 
     total
