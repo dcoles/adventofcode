@@ -119,6 +119,8 @@ impl Iterator for Positions {
     type Item = Pos;
 
     fn next(&mut self) -> Option<Self::Item> {
+        panic!("FIXME: skips [0][0]");
+
         if self.cur[0] < self.end[0] {
             self.cur[0] += 1;
             return Some(self.cur);
