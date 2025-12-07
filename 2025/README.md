@@ -15,3 +15,4 @@ cargo run --bin day01
 3. [Lobby](day03) 🌟🌟
 4. [Printing Department](day04) 🌟🌟
 5. [Cafeteria](day05) 🌟🌟
+6. [Trash Compactor](day06) 🌟🌟
