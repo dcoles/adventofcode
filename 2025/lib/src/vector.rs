@@ -1,6 +1,7 @@
 //! Vector type.
 
-use std::ops::{Add, AddAssign, Index, IndexMut, Neg, Sub, SubAssign};
+use std::iter::Sum;
+use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Neg, Sub, SubAssign};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Vector<T: Copy + Default, const N: usize>([T; N]);
@@ -12,6 +13,12 @@ impl<T: Copy + Default, const N: usize> Vector<T, N> {
 
     pub const fn dimensions(self) -> usize {
         N
+    }
+}
+
+impl <T: Copy + Default + Add<Output=T> + Mul<Output=T> + Sum, const N: usize> Vector<T, N> {
+    pub fn magnitude_squared(&self) -> T {
+        self.0.iter().copied().map(|v| v * v).sum()
     }
 }
 
