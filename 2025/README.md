@@ -17,3 +17,7 @@ cargo run --bin day01
 5. [Cafeteria](day05) 🌟🌟
 6. [Trash Compactor](day06) 🌟🌟
 7. [Laboratories](day07) 🌟🌟
+8. [Playground](day08) 🌟🌟
+9. [Movie Theater](day09)
+10. [Factory](day10)
+11. [Reactor](day11) 🌟🌟
